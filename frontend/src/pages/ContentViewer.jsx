@@ -205,6 +205,7 @@ export default function ContentViewer({ user }) {
             src={`https://drive.google.com/uc?export=view&id=${fileId}`}
             alt={file.title}
             className="max-w-full h-auto rounded"
+            referrerPolicy="no-referrer"
           />
         </div>
       );
