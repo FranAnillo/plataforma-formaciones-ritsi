@@ -215,8 +215,8 @@ export default function ContentViewer({ user }) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
+        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
           <p className="text-lg text-gray-700">Cargando contenido...</p>
         </div>
       </div>
@@ -235,7 +235,7 @@ export default function ContentViewer({ user }) {
   const currentQuiz = content.quizzes[currentQuizIndex];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-red-100" style={{ fontFamily: 'Exo, sans-serif' }}>
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4">
@@ -397,7 +397,7 @@ export default function ContentViewer({ user }) {
                         data-testid="submit-quiz-button"
                         onClick={handleSubmitQuiz}
                         disabled={submittingQuiz}
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-6 text-lg"
+                        className="w-full bg-[#da2724] hover:bg-[#b8211e] text-white py-6 text-lg"
                       >
                         {submittingQuiz ? 'Enviando...' : 'Enviar Cuestionario'}
                       </Button>
@@ -432,7 +432,7 @@ export default function ContentViewer({ user }) {
                         }}
                         className={`w-full text-left p-3 rounded-lg transition-all ${
                           currentSection === 'files' && currentFileIndex === index
-                            ? 'bg-indigo-100 border-2 border-indigo-400'
+                            ? 'bg-red-100 border-2 border-red-400'
                             : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
                         }`}
                       >
@@ -467,7 +467,7 @@ export default function ContentViewer({ user }) {
                           disabled={!canAccessQuizzes()}
                           className={`w-full text-left p-3 rounded-lg transition-all ${
                             currentSection === 'quiz' && currentQuizIndex === index
-                              ? 'bg-indigo-100 border-2 border-indigo-400'
+                              ? 'bg-red-100 border-2 border-red-400'
                               : canAccessQuizzes()
                               ? 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
                               : 'bg-gray-100 opacity-50 cursor-not-allowed border-2 border-transparent'

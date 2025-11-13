@@ -389,6 +389,21 @@ async def get_training_content_by_id(content_id: str, current_user: User = Depen
     
     return TrainingContent(**content)
 
+@api_router.delete("/content/{content_id}")
+async def delete_training_content(content_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ESCUELA_FORMACION, UserType.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para eliminar contenido formativo"
+        )
+
+    # Delete the content
+    delete_result = await db.training_contents.delete_one({"id": content_id})
+    if delete_result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Content not found")
+
+    return {"message": "Content deleted successfully"}
+
 # Assignments endpoints
 @api_router.post("/assignments")
 async def assign_content(request: AssignContentRequest, current_user: User = Depends(get_current_user)):

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '../components/ui/label';
 import axios from 'axios';
 import { toast } from 'sonner';
+import logo from '../static/1710_Isotipo_Degradado.png';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -59,8 +60,8 @@ export default function JuntaDashboard({ user, onLogout }) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
+        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
           <p className="text-lg text-gray-700">Cargando...</p>
         </div>
       </div>
@@ -68,13 +69,11 @@ export default function JuntaDashboard({ user, onLogout }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-red-100" style={{ fontFamily: 'Exo, sans-serif' }}>
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2 rounded-xl">
-              <BookOpen className="w-6 h-6 text-white" />
-            </div>
+            <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
             <div>
               <h1 className="text-xl font-bold text-gray-800">Plataforma Formativa</h1>
               <p className="text-sm text-gray-600">Junta Directiva</p>
@@ -102,14 +101,14 @@ export default function JuntaDashboard({ user, onLogout }) {
       <main className="container mx-auto px-6 py-8">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-gray-800 mb-2" style={{ fontFamily: 'Playfair Display, serif' }}>
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">
               Junta Directiva
             </h2>
             <p className="text-gray-600">Asigna contenido a todos los representantes</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="assign-all-button" className="bg-indigo-600 hover:bg-indigo-700">
+              <Button data-testid="assign-all-button" className="bg-[#da2724] hover:bg-[#b8211e]">
                 <Plus className="w-4 h-4 mr-2" />
                 Asignar a Todos
               </Button>
@@ -136,7 +135,7 @@ export default function JuntaDashboard({ user, onLogout }) {
                           name="content"
                           checked={selectedContent === content.id}
                           onChange={() => setSelectedContent(content.id)}
-                          className="w-4 h-4 text-indigo-600"
+                          className="w-4 h-4 text-[#da2724] focus:ring-[#da2724]"
                         />
                         <Label htmlFor={`content-${content.id}`} className="cursor-pointer flex-1">
                           <div>
@@ -154,7 +153,7 @@ export default function JuntaDashboard({ user, onLogout }) {
                 <Button
                   data-testid="confirm-assign-all-button"
                   onClick={handleAssignToAll}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700"
+                  className="w-full bg-[#da2724] hover:bg-[#b8211e]"
                 >
                   Asignar a Todos los Representantes
                 </Button>

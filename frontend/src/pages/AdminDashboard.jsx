@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import EscuelaFormacionDashboard from './EscuelaFormacionDashboard';
 import axios from 'axios';
 import { toast } from 'sonner';
+import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -46,22 +47,20 @@ export default function AdminDashboard({ user, onLogout }) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700">Cargando...</p>
+        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
+          <p className="text-lg text-gray-700">Cargando panel...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100" style={{ fontFamily: 'Exo, sans-serif' }}>
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2 rounded-xl">
-              <BookOpen className="w-6 h-6 text-white" />
-            </div>
+            <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
             <div>
               <h1 className="text-xl font-bold text-gray-800">Plataforma Formativa</h1>
               <p className="text-sm text-gray-600">Administrador</p>
@@ -88,7 +87,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
       <main className="container mx-auto px-6 py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-800 mb-2" style={{ fontFamily: 'Playfair Display, serif' }}>
+          <h2 className="text-3xl font-bold text-gray-800 mb-2">
             Panel de Administración
           </h2>
           <p className="text-gray-600">Gestión completa de la plataforma</p>
@@ -96,43 +95,43 @@ export default function AdminDashboard({ user, onLogout }) {
 
         {/* Stats */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+          <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
                 <Users className="w-8 h-8 opacity-80" />
                 <span className="text-3xl font-bold">{stats.totalRepresentatives}</span>
               </div>
-              <p className="text-blue-100">Representantes</p>
+              <p className="text-red-100">Representantes</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+          <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
                 <Building2 className="w-8 h-8 opacity-80" />
                 <span className="text-3xl font-bold">{stats.totalUniversities}</span>
               </div>
-              <p className="text-purple-100">Universidades</p>
+              <p className="text-red-100">Universidades</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+          <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
                 <FileText className="w-8 h-8 opacity-80" />
                 <span className="text-3xl font-bold">{stats.totalContents}</span>
               </div>
-              <p className="text-green-100">Contenidos</p>
+              <p className="text-red-100">Contenidos</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+          <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
                 <GraduationCap className="w-8 h-8 opacity-80" />
                 <span className="text-3xl font-bold">100%</span>
               </div>
-              <p className="text-orange-100">Sistema Activo</p>
+              <p className="text-red-100">Sistema Activo</p>
             </CardContent>
           </Card>
         </div>

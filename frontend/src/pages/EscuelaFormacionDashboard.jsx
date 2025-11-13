@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
 import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -10,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Checkbox } from '../components/ui/checkbox';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { Trash2 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -42,7 +44,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
         axios.get(`${API}/content`),
         axios.get(`${API}/representatives`)
       ]);
-      setContents(contentsRes.data);
+      setContents(contentsRes.data || []);
       setRepresentatives(repsRes.data);
     } catch (error) {
       toast.error('Error al cargar datos');
@@ -235,11 +237,26 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
     }
   };
 
+  const handleDeleteContent = async (contentId) => {
+    try {
+      await axios.delete(`${API}/content/${contentId}`);
+      toast.success('Contenido eliminado exitosamente');
+
+      // Refresh data
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al eliminar contenido');
+    }
+  };
+
+
+
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
+        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
           <p className="text-lg text-gray-700">Cargando...</p>
         </div>
       </div>
@@ -247,13 +264,11 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100" style={{ fontFamily: 'Exo, sans-serif' }}>
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2 rounded-xl">
-              <BookOpen className="w-6 h-6 text-white" />
-            </div>
+            <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
             <div>
               <h1 className="text-xl font-bold text-gray-800">Plataforma Formativa</h1>
               <p className="text-sm text-gray-600">Escuela de Formación</p>
@@ -281,7 +296,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
       <main className="container mx-auto px-6 py-8">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-gray-800 mb-2" style={{ fontFamily: 'Playfair Display, serif' }}>
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">
               Gestión de Contenidos
             </h2>
             <p className="text-gray-600">Crea y asigna contenidos formativos</p>
@@ -289,7 +304,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
           <div className="flex gap-3">
             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button data-testid="create-content-button" className="bg-indigo-600 hover:bg-indigo-700">
+                <Button data-testid="create-content-button" className="bg-[#da2724] hover:bg-[#b8211e]">
                   <Plus className="w-4 h-4 mr-2" />
                   Crear Contenido
                 </Button>
@@ -504,7 +519,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                   <Button
                     data-testid="submit-content-button"
                     onClick={handleCreateContent}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 py-6"
+                    className="w-full bg-[#da2724] hover:bg-[#b8211e] py-6"
                   >
                     Crear Contenido Formativo
                   </Button>
@@ -534,7 +549,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                             name="content"
                             checked={selectedContent === content.id}
                             onChange={() => setSelectedContent(content.id)}
-                            className="w-4 h-4 text-indigo-600"
+                            className="w-4 h-4 text-[#da2724] focus:ring-[#da2724]"
                           />
                           <Label htmlFor={`content-${content.id}`} className="cursor-pointer flex-1">
                             {content.title}
@@ -587,7 +602,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                   <Button
                     data-testid="confirm-assign-button"
                     onClick={handleAssignContent}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700"
+                    className="w-full bg-[#da2724] hover:bg-[#b8211e]"
                   >
                     Asignar Contenido
                   </Button>
@@ -601,19 +616,27 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
           <CardHeader>
             <CardTitle>Contenidos Creados ({contents.length})</CardTitle>
           </CardHeader>
-          <CardContent>
+ <CardContent>
             {contents.length === 0 ? (
               <p className="text-gray-600 text-center py-8">No hay contenidos creados aún</p>
-            ) : (
-              <div className="space-y-4">
-                {contents.map((content) => (
-                  <Card key={content.id} className="hover:shadow-lg transition-shadow">
-                    <CardContent className="pt-6">
-                      <h3 className="font-bold text-lg text-gray-800 mb-2">{content.title}</h3>
-                      {content.description && (
-                        <p className="text-gray-600 text-sm mb-3">{content.description}</p>
-                      )}
-                      <div className="flex items-center gap-6 text-sm text-gray-500">
+ ) : (
+ <div className="space-y-4">
+ {contents.map((content) => (
+ <Card key={content.id} className="hover:shadow-lg transition-shadow">
+ <CardContent className="pt-6">
+ <div className="flex justify-between items-start">
+ <div>
+ <h3 className="font-bold text-lg text-gray-800 mb-2">{content.title}</h3>
+ {content.description && (
+ <p className="text-gray-600 text-sm mb-3">{content.description}</p>
+ )}
+ </div>
+ <Button onClick={() => handleDeleteContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+ <Trash2 className="w-4 h-4 mr-2" />
+ Eliminar
+ </Button>
+ </div>
+ <div className="flex items-center gap-6 text-sm text-gray-500">
                         <span className="flex items-center gap-1">
                           <FileText className="w-4 h-4" />
                           {content.files.length} archivos
@@ -622,14 +645,14 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                           <HelpCircle className="w-4 h-4" />
                           {content.quizzes.length} cuestionarios
                         </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+ </div>
+ </CardContent>
+ </Card>
+ ))}
+ </div>
+ )}
+ </CardContent>
+ </Card>
       </main>
     </div>
   );
