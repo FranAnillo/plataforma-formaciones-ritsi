@@ -51,20 +51,20 @@ La plataforma sigue una arquitectura cliente-servidor desacoplada, utilizando Re
 ```mermaid
 graph TD
     subgraph "Usuario Final"
-        User[👤 Usuario]
+        User["👤 Usuario"]
     end
 
     subgraph "Infraestructura Frontend"
-        Frontend[⚛️ Frontend (React + Tailwind CSS)]
+        Frontend["⚛️ Frontend (React + Tailwind CSS)"]
     end
 
     subgraph "Infraestructura Backend"
-        Backend[🐍 Backend (FastAPI)] --> Database[(🍃 Base de Datos MongoDB)]
+        Backend["🐍 Backend (FastAPI)"] --> Database[("🍃 Base de Datos MongoDB")]
     end
 
     subgraph "Servicios Externos"
-        Auth[🔐 Emergent Auth (OAuth)]
-        Drive[📄 Google Drive (Archivos)]
+        Auth["🔐 Emergent Auth (OAuth)"]
+        Drive["📄 Google Drive (Archivos)"]
     end
 
     User -- HTTPS --> Frontend
@@ -73,4 +73,3 @@ graph TD
     Auth -- Token de Sesión --> Frontend
     Frontend -- Incrusta Contenido de --> Drive
 ```
-
