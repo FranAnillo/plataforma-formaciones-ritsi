@@ -55,6 +55,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
   // Drag and drop state
   const dragItem = useRef(null);
   const dragOverItem = useRef(null);
+  const [draggingItem, setDraggingItem] = useState(null);
 
 
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     dragItem.current = null;
     dragOverItem.current = null;
     setFiles(newFiles);
+    setDraggingItem(null);
   };
 
   const handleQuizSort = () => {
@@ -108,6 +110,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     dragItem.current = null;
     dragOverItem.current = null;
     setQuizzes(newQuizzes);
+    setDraggingItem(null);
   };
 
   const addQuiz = () => {
@@ -463,11 +466,13 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                         <Card 
                           key={index} 
                           draggable
-                          onDragStart={() => (dragItem.current = index)}
+                          onDragStart={() => { dragItem.current = index; setDraggingItem({type: 'file', index}); }}
                           onDragEnter={() => (dragOverItem.current = index)}
                           onDragEnd={handleFileSort}
                           onDragOver={(e) => e.preventDefault()}
-                          className={`bg-gray-50 dark:bg-gray-900 cursor-grab transition-shadow ${dragItem.current === index ? 'shadow-2xl' : ''}`}
+                          className={`bg-gray-50 dark:bg-gray-900 cursor-grab transition-all 
+                            ${draggingItem?.type === 'file' && draggingItem?.index === index ? 'opacity-50 shadow-2xl' : 'opacity-100'}
+                            ${dragOverItem.current === index ? 'border-2 border-red-400' : ''}`}
                         >
                           <CardContent className="pt-6 space-y-3">
                             <div className="flex justify-between items-start">
@@ -531,11 +536,13 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                         <Card 
                           key={quizIndex} 
                           draggable
-                          onDragStart={() => (dragItem.current = quizIndex)}
+                          onDragStart={() => { dragItem.current = quizIndex; setDraggingItem({type: 'quiz', index: quizIndex}); }}
                           onDragEnter={() => (dragOverItem.current = quizIndex)}
                           onDragEnd={handleQuizSort}
                           onDragOver={(e) => e.preventDefault()}
-                          className={`bg-blue-50 dark:bg-blue-900/20 cursor-grab transition-shadow ${dragItem.current === quizIndex ? 'shadow-2xl' : ''}`}
+                          className={`bg-blue-50 dark:bg-blue-900/20 cursor-grab transition-all 
+                            ${draggingItem?.type === 'quiz' && draggingItem?.index === quizIndex ? 'opacity-50 shadow-2xl' : 'opacity-100'}
+                            ${dragOverItem.current === quizIndex ? 'border-2 border-red-400' : ''}`}
                         >
                           <CardContent className="pt-6 space-y-4">
                             <div className="flex justify-between items-start">
