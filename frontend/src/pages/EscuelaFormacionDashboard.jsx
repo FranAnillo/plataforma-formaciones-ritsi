@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
-import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle } from 'lucide-react';
+import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -28,20 +28,28 @@ const roleNames = {
 export default function EscuelaFormacionDashboard({ user, onLogout, showHeader = true }) {
   console.log(user.user_type);
   const [contents, setContents] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [representatives, setRepresentatives] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   
+  // Category management states
+  const [editCategory, setEditCategory] = useState(null);
+  const [deleteCategory, setDeleteCategory] = useState(null);
+
   // Create content form states
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState([]);
   const [files, setFiles] = useState([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
   const [quizzes, setQuizzes] = useState([]);
   
   // Assign content states
   const [selectedContent, setSelectedContent] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
+  const [assignCategoryFilter, setAssignCategoryFilter] = useState('all');
   const [assignToAll, setAssignToAll] = useState(false);
 
   useEffect(() => {
@@ -50,12 +58,14 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
 
   const fetchData = async () => {
     try {
-      const [contentsRes, repsRes] = await Promise.all([
+      const [contentsRes, repsRes, catsRes] = await Promise.all([
         axios.get(`${API}/content`),
-        axios.get(`${API}/representatives`)
+        axios.get(`${API}/representatives`),
+        axios.get(`${API}/categories`)
       ]);
       setContents(contentsRes.data || []);
       setRepresentatives(repsRes.data);
+      setCategories(catsRes.data || []);
     } catch (error) {
       toast.error('Error al cargar datos');
     } finally {
@@ -75,6 +85,28 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
 
   const removeFile = (index) => {
     setFiles(files.filter((_, i) => i !== index));
+  };
+
+  const moveFile = (index, direction) => {
+    const newFiles = [...files];
+    if (direction === 'up' && index > 0) {
+      [newFiles[index - 1], newFiles[index]] = [newFiles[index], newFiles[index - 1]];
+      setFiles(newFiles);
+    } else if (direction === 'down' && index < files.length - 1) {
+      [newFiles[index + 1], newFiles[index]] = [newFiles[index], newFiles[index + 1]];
+      setFiles(newFiles);
+    }
+  };
+
+  const moveQuiz = (index, direction) => {
+    const newQuizzes = [...quizzes];
+    if (direction === 'up' && index > 0) {
+      [newQuizzes[index - 1], newQuizzes[index]] = [newQuizzes[index], newQuizzes[index - 1]];
+      setQuizzes(newQuizzes);
+    } else if (direction === 'down' && index < quizzes.length - 1) {
+      [newQuizzes[index + 1], newQuizzes[index]] = [newQuizzes[index], newQuizzes[index + 1]];
+      setQuizzes(newQuizzes);
+    }
   };
 
   const addQuiz = () => {
@@ -199,6 +231,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
       await axios.post(`${API}/content`, {
         title,
         description,
+        category_ids: selectedCategories,
         files,
         quizzes
       });
@@ -209,6 +242,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
       // Reset form
       setTitle('');
       setDescription('');
+      setSelectedCategories([]);
       setFiles([]);
       setQuizzes([]);
       
@@ -247,6 +281,58 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     }
   };
 
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) {
+      toast.error('El nombre de la categoría no puede estar vacío');
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${API}/categories`, { name: newCategoryName });
+      const newCategory = response.data;
+      
+      toast.success(`Categoría "${newCategory.name}" creada`);
+      
+      // Add to state and auto-select
+      setCategories([...categories, newCategory]);
+      setSelectedCategories([...selectedCategories, newCategory.id]);
+      
+      // Reset input
+      setNewCategoryName('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al crear la categoría');
+    }
+  };
+
+  const handleUpdateCategory = async () => {
+    if (!editCategory || !editCategory.name.trim()) {
+      toast.error('El nombre no puede estar vacío');
+      return;
+    }
+    try {
+      const response = await axios.put(`${API}/categories/${editCategory.id}`, { name: editCategory.name });
+      toast.success('Categoría actualizada');
+      setCategories(categories.map(c => c.id === editCategory.id ? response.data : c));
+      setEditCategory(null);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al actualizar la categoría');
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!deleteCategory) return;
+    try {
+      await axios.delete(`${API}/categories/${deleteCategory.id}`);
+      toast.success(`Categoría "${deleteCategory.name}" eliminada`);
+      setCategories(categories.filter(c => c.id !== deleteCategory.id));
+      // Also remove from selected categories if it was selected
+      setSelectedCategories(selectedCategories.filter(id => id !== deleteCategory.id));
+      setDeleteCategory(null);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al eliminar la categoría');
+    }
+  };
+
   const handleDeleteContent = async (contentId) => {
     try {
       await axios.delete(`${API}/content/${contentId}`);
@@ -257,6 +343,18 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al eliminar contenido');
     }
+  };
+
+  const filteredContentsForAssignment = contents.filter(content => {
+    if (assignCategoryFilter === 'all') {
+      return true;
+    }
+    return content.category_ids?.includes(assignCategoryFilter);
+  });
+
+  const getCategoryNames = (categoryIds) => {
+    if (!categoryIds || categoryIds.length === 0) return [];
+    return categoryIds.map(id => categories.find(cat => cat.id === id)?.name).filter(Boolean);
   };
 
 
@@ -314,6 +412,40 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                         rows={3}
                       />
                     </div>
+                    <div>
+                      <Label>Categorías</Label>
+                      <div className="flex flex-wrap gap-2 border rounded-md p-2 mt-2">
+                        {categories.length > 0 ? categories.map(category => (
+                          <div
+                            key={category.id}
+                            className={`flex items-center space-x-2 p-2 rounded-md cursor-pointer transition-colors ${
+                              selectedCategories.includes(category.id)
+                                ? 'bg-red-100 dark:bg-red-900/50'
+                                : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                            onClick={() => {
+                              const newSelection = selectedCategories.includes(category.id)
+                                ? selectedCategories.filter(id => id !== category.id)
+                                : [...selectedCategories, category.id];
+                              setSelectedCategories(newSelection);
+                            }}
+                          >
+                            <Checkbox checked={selectedCategories.includes(category.id)} />
+                            <Label className="cursor-pointer">{category.name}</Label>
+                          </div>
+                        )) : <p className="text-sm text-gray-500">No hay categorías creadas.</p>}
+                      </div>
+                      <div className="flex items-center gap-2 mt-3">
+                        <Input
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          placeholder="Nombre de la nueva categoría"
+                        />
+                        <Button type="button" variant="outline" onClick={handleCreateCategory}>
+                          Crear
+                        </Button>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Files Section */}
@@ -329,16 +461,26 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                       {files.map((file, index) => (
                         <Card key={index} className="bg-gray-50 dark:bg-gray-900">
                           <CardContent className="pt-6 space-y-3">
-                            <div className="flex justify-between items-center">
-                              <span className="font-medium text-sm">Archivo {index + 1}</span>
-                              <Button
-                                onClick={() => removeFile(index)}
-                                size="sm"
-                                variant="ghost"
-                                className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50"
-                              >
-                                Eliminar
-                              </Button>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <span className="font-medium text-sm">Archivo {index + 1}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button type="button" variant="ghost" size="icon" onClick={() => moveFile(index, 'up')} disabled={index === 0}>
+                                  <ArrowUp className="w-4 h-4" />
+                                </Button>
+                                <Button type="button" variant="ghost" size="icon" onClick={() => moveFile(index, 'down')} disabled={index === files.length - 1}>
+                                  <ArrowDown className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  onClick={() => removeFile(index)}
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50"
+                                >
+                                  Eliminar
+                                </Button>
+                              </div>
                             </div>
                             <Select value={file.file_type} onValueChange={(value) => updateFile(index, 'file_type', value)}>
                               <SelectTrigger>
@@ -384,16 +526,26 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                       {quizzes.map((quiz, quizIndex) => (
                         <Card key={quizIndex} className="bg-blue-50 dark:bg-blue-900/20">
                           <CardContent className="pt-6 space-y-4">
-                            <div className="flex justify-between items-center">
-                              <span className="font-semibold">Cuestionario {quizIndex + 1}</span>
-                              <Button
-                                onClick={() => removeQuiz(quizIndex)}
-                                size="sm"
-                                variant="ghost"
-                                className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50"
-                              >
-                                Eliminar
-                              </Button>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <span className="font-semibold">Cuestionario {quizIndex + 1}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button type="button" variant="ghost" size="icon" onClick={() => moveQuiz(quizIndex, 'up')} disabled={quizIndex === 0}>
+                                  <ArrowUp className="w-4 h-4" />
+                                </Button>
+                                <Button type="button" variant="ghost" size="icon" onClick={() => moveQuiz(quizIndex, 'down')} disabled={quizIndex === quizzes.length - 1}>
+                                  <ArrowDown className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  onClick={() => removeQuiz(quizIndex)}
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50"
+                                >
+                                  Eliminar
+                                </Button>
+                              </div>
                             </div>
                             <Input
                               value={quiz.title}
@@ -516,11 +668,25 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                 <DialogHeader>
                   <DialogTitle>Asignar Contenido</DialogTitle>
                 </DialogHeader>
+                <div className="flex items-center gap-4">
+                  <Label>Filtrar por categoría:</Label>
+                  <Select value={assignCategoryFilter} onValueChange={setAssignCategoryFilter}>
+                    <SelectTrigger className="w-[250px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las categorías</SelectItem>
+                      {categories.map(category => (
+                        <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-6 mt-4">
                   <div>
                     <Label className="text-base font-semibold mb-3 block">Selecciona Contenido</Label>
                     <div className="space-y-2 max-h-48 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
-                      {contents.map((content) => (
+                      {filteredContentsForAssignment.map((content) => (
                         <div key={content.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
                           <input
                             type="radio"
@@ -610,6 +776,13 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
  <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{content.description}</p>
  )}
  </div>
+ {getCategoryNames(content.category_ids).length > 0 && (
+ <div className="flex flex-wrap gap-2 mb-3">
+ {getCategoryNames(content.category_ids).map(name => (
+ <span key={name} className="text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 px-2 py-1 rounded-full">{name}</span>
+ ))}
+ </div>
+ )}
  <Button onClick={() => handleDeleteContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
  <Trash2 className="w-4 h-4 mr-2" />
  Eliminar
@@ -632,6 +805,66 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
  )}
  </CardContent>
       </Card>
+
+      <Card className="bg-white dark:bg-gray-800/50 mt-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Tag className="w-5 h-5" />
+            Gestión de Categorías ({categories.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {categories.length > 0 ? (
+            <div className="space-y-2">
+              {categories.map(category => (
+                <div key={category.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <span className="font-medium">{category.name}</span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setEditCategory(category)}>
+                      <Edit className="w-4 h-4 mr-2" /> Editar
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50" onClick={() => setDeleteCategory(category)}>
+                      <Trash2 className="w-4 h-4 mr-2" /> Eliminar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay categorías creadas.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Edit Category Dialog */}
+      <Dialog open={!!editCategory} onOpenChange={() => setEditCategory(null)}>
+        <DialogContent className="bg-white dark:bg-gray-900">
+          <DialogHeader>
+            <DialogTitle>Editar Categoría</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Label htmlFor="edit-category-name">Nombre de la categoría</Label>
+            <Input id="edit-category-name" value={editCategory?.name || ''} onChange={(e) => setEditCategory({...editCategory, name: e.target.value})} />
+          </div>
+          <Button onClick={handleUpdateCategory} className="w-full">Guardar Cambios</Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Category Dialog */}
+      <Dialog open={!!deleteCategory} onOpenChange={() => setDeleteCategory(null)}>
+        <DialogContent className="bg-white dark:bg-gray-900">
+          <DialogHeader>
+            <DialogTitle>Confirmar Eliminación</DialogTitle>
+          </DialogHeader>
+          <p>
+            ¿Estás seguro de que quieres eliminar la categoría "<strong>{deleteCategory?.name}</strong>"? Esta acción no se puede deshacer.
+          </p>
+          <div className="flex justify-end gap-4 mt-4">
+            <Button variant="ghost" onClick={() => setDeleteCategory(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDeleteCategory}>Eliminar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 
