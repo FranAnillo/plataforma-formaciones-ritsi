@@ -12,6 +12,7 @@ import { Checkbox } from '../components/ui/checkbox';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
+import { ThemeToggleButton } from '../components/ThemeToggleButton';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -254,37 +255,38 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
         <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700">Cargando...</p>
+          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100" style={{ fontFamily: 'Exo, sans-serif' }}>
-      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
+      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
             <div>
-              <h1 className="text-xl font-bold text-gray-800">Plataforma Formativa</h1>
-              <p className="text-sm text-gray-600">Escuela de Formación</p>
+              <h1 className="text-xl font-bold">Plataforma Formativa</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Escuela de Formación</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-full">
-              <User className="w-4 h-4 text-gray-600" />
-              <span className="text-sm text-gray-700">{user.name}</span>
+            <ThemeToggleButton />
+            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-full">
+              <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              <span className="text-sm font-medium">{user.name}</span>
             </div>
             <Button
               data-testid="logout-button"
               onClick={onLogout}
               variant="ghost"
               size="sm"
-              className="hover:bg-red-50 hover:text-red-600"
+              className="hover:bg-red-50 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400"
             >
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar Sesión
@@ -296,10 +298,8 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
       <main className="container mx-auto px-6 py-8">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">
-              Gestión de Contenidos
-            </h2>
-            <p className="text-gray-600">Crea y asigna contenidos formativos</p>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Gestión de Contenidos</h2>
+            <p className="text-gray-600 dark:text-gray-400">Crea y asigna contenidos formativos</p>
           </div>
           <div className="flex gap-3">
             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -309,7 +309,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                   Crear Contenido
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-950">
                 <DialogHeader>
                   <DialogTitle>Crear Nuevo Contenido Formativo</DialogTitle>
                 </DialogHeader>
@@ -317,21 +317,21 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                   {/* Basic Info */}
                   <div className="space-y-4">
                     <div>
-                      <Label>Título *</Label>
+                      <Label htmlFor="content-title">Título *</Label>
                       <Input
+                        id="content-title"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="Título del contenido"
-                        className="mt-2"
                       />
                     </div>
                     <div>
-                      <Label>Descripción</Label>
+                      <Label htmlFor="content-description">Descripción</Label>
                       <Textarea
+                        id="content-description"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         placeholder="Descripción del contenido"
-                        className="mt-2"
                         rows={3}
                       />
                     </div>
@@ -348,7 +348,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                     </div>
                     <div className="space-y-4">
                       {files.map((file, index) => (
-                        <Card key={index} className="bg-gray-50">
+                        <Card key={index} className="bg-gray-50 dark:bg-gray-900">
                           <CardContent className="pt-6 space-y-3">
                             <div className="flex justify-between items-center">
                               <span className="font-medium text-sm">Archivo {index + 1}</span>
@@ -356,7 +356,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                                 onClick={() => removeFile(index)}
                                 size="sm"
                                 variant="ghost"
-                                className="text-red-600 hover:text-red-700"
+                                className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50"
                               >
                                 Eliminar
                               </Button>
@@ -403,7 +403,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                     </div>
                     <div className="space-y-6">
                       {quizzes.map((quiz, quizIndex) => (
-                        <Card key={quizIndex} className="bg-blue-50">
+                        <Card key={quizIndex} className="bg-blue-50 dark:bg-blue-900/20">
                           <CardContent className="pt-6 space-y-4">
                             <div className="flex justify-between items-center">
                               <span className="font-semibold">Cuestionario {quizIndex + 1}</span>
@@ -411,7 +411,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                                 onClick={() => removeQuiz(quizIndex)}
                                 size="sm"
                                 variant="ghost"
-                                className="text-red-600 hover:text-red-700"
+                                className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50"
                               >
                                 Eliminar
                               </Button>
@@ -448,7 +448,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                                 </Button>
                               </div>
                               {quiz.questions.map((question, questionIndex) => (
-                                <Card key={questionIndex} className="bg-white">
+                                <Card key={questionIndex} className="bg-white dark:bg-gray-800/50">
                                   <CardContent className="pt-4 space-y-3">
                                     <div className="flex justify-between items-center">
                                       <span className="text-sm font-medium">Pregunta {questionIndex + 1}</span>
@@ -456,7 +456,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                                         onClick={() => removeQuestion(quizIndex, questionIndex)}
                                         size="sm"
                                         variant="ghost"
-                                        className="text-red-600 hover:text-red-700 h-8 px-2"
+                                        className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50 h-8 px-2"
                                       >
                                         Eliminar
                                       </Button>
@@ -482,7 +482,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                                     </Select>
 
                                     {/* Options */}
-                                    <div className="space-y-2 pl-4 border-l-2 border-gray-200">
+                                    <div className="space-y-2 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
                                       <Label className="text-xs text-gray-600">Opciones:</Label>
                                       {question.options.map((option, optionIndex) => (
                                         <div key={optionIndex} className="flex items-center gap-2">
@@ -533,14 +533,14 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                   Asignar Contenido
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-white dark:bg-gray-900">
                 <DialogHeader>
                   <DialogTitle>Asignar Contenido</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-6 mt-4">
                   <div>
                     <Label className="text-base font-semibold mb-3 block">Selecciona Contenido</Label>
-                    <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                    <div className="space-y-2 max-h-48 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
                       {contents.map((content) => (
                         <div key={content.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
                           <input
@@ -559,7 +559,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
+                  <div className="flex items-center space-x-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                     <Checkbox
                       id="assign-all"
                       checked={assignToAll}
@@ -573,7 +573,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
                   {!assignToAll && (
                     <div>
                       <Label className="text-base font-semibold mb-3 block">Selecciona Representantes</Label>
-                      <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+                      <div className="space-y-2 max-h-64 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
                         {representatives.map((rep) => (
                           <div key={rep.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
                             <Checkbox
@@ -612,23 +612,23 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
           </div>
         </div>
 
-        <Card>
+        <Card className="bg-white dark:bg-gray-800/50">
           <CardHeader>
             <CardTitle>Contenidos Creados ({contents.length})</CardTitle>
           </CardHeader>
  <CardContent>
             {contents.length === 0 ? (
-              <p className="text-gray-600 text-center py-8">No hay contenidos creados aún</p>
+              <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay contenidos creados aún</p>
  ) : (
  <div className="space-y-4">
  {contents.map((content) => (
- <Card key={content.id} className="hover:shadow-lg transition-shadow">
+ <Card key={content.id} className="hover:shadow-lg transition-shadow bg-white dark:bg-gray-800">
  <CardContent className="pt-6">
  <div className="flex justify-between items-start">
  <div>
- <h3 className="font-bold text-lg text-gray-800 mb-2">{content.title}</h3>
+ <h3 className="font-bold text-lg mb-2">{content.title}</h3>
  {content.description && (
- <p className="text-gray-600 text-sm mb-3">{content.description}</p>
+ <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{content.description}</p>
  )}
  </div>
  <Button onClick={() => handleDeleteContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
@@ -636,7 +636,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
  Eliminar
  </Button>
  </div>
- <div className="flex items-center gap-6 text-sm text-gray-500">
+ <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
                         <span className="flex items-center gap-1">
                           <FileText className="w-4 h-4" />
                           {content.files.length} archivos

@@ -1,38 +1,42 @@
 import { BookOpen, GraduationCap, Users, Award } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import logo from '../static/1710_Isotipo_Degradado.png';
+import { ThemeToggleButton } from '../components/ThemeToggleButton';
 
 const REDIRECT_URL = window.location.origin + '/dashboard';
 const AUTH_URL = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(REDIRECT_URL)}`;
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-red-50 to-red-100" style={{ fontFamily: 'Exo, sans-serif' }}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-red-50 to-red-100 dark:from-gray-900 dark:via-black dark:to-black text-gray-800 dark:text-gray-200" style={{ fontFamily: 'Exo, sans-serif' }}>
       {/* Header */}
       <header className="container mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={logo} alt="Plataforma Formativa Logo" className="w-10 h-10" />
-            <h1 className="text-2xl font-bold text-gray-800">Plataforma Formativa</h1>
+            <h1 className="text-2xl font-bold">Plataforma Formativa</h1>
           </div>
-          <Button 
-            data-testid="login-button"
-            onClick={() => window.location.href = AUTH_URL}
-            className="bg-[#da2724] hover:bg-[#b8211e] text-white px-6 py-2 rounded-full font-medium shadow-lg hover:shadow-xl transition-all"
-          >
-            Iniciar Sesión
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggleButton />
+            <Button 
+              data-testid="login-button"
+              onClick={() => window.location.href = AUTH_URL}
+              className="bg-[#da2724] hover:bg-[#b8211e] text-white px-6 py-2 rounded-full font-medium shadow-lg hover:shadow-xl transition-all"
+            >
+              Iniciar Sesión
+            </Button>
+          </div>
         </div>
       </header>
 
       {/* Hero Section */}
       <section className="container mx-auto px-6 py-16 md:py-24">
         <div className="text-center max-w-4xl mx-auto">
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-white mb-6">
             Formación de RITSI para RITSI<br />
             <span className="text-[#da2724]">Organizada y Efectiva</span>
           </h2>
-          <p className="text-lg sm:text-xl text-gray-600 mb-10 leading-relaxed">
+          <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-400 mb-10 leading-relaxed">
             Una plataforma completa para gestionar contenidos formativos, cuestionarios y seguimiento del progreso de los representantes universitarios.
           </p>
           <Button 
@@ -73,9 +77,9 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="container mx-auto px-6 py-8 mt-20 border-t border-gray-200">
-        <p className="text-center text-gray-600">
-          © 2025 Plataforma Formativa de RITSI.
+      <footer className="container mx-auto px-6 py-8 mt-20 border-t border-gray-200 dark:border-gray-800">
+        <p className="text-center text-gray-600 dark:text-gray-400">
+          © 2025 Plataforma Formativa de <a href="https://ritsi.org" target="_blank" rel="noopener noreferrer" className="text-[#da2724] hover:underline">RITSI</a>.
         </p>
       </footer>
     </div>
@@ -84,10 +88,10 @@ export default function Landing() {
 
 function FeatureCard({ icon, title, description }) {
   return (
-    <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all border border-gray-100 hover:border-red-200">
+    <div className="bg-white/60 dark:bg-gray-800/40 p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all border border-gray-100 dark:border-gray-800 hover:border-red-200 dark:hover:border-red-500/30">
       <div className="mb-4">{icon}</div>
-      <h3 className="text-xl font-bold text-gray-800 mb-3">{title}</h3>
-      <p className="text-gray-600 leading-relaxed">{description}</p>
+      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">{title}</h3>
+      <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{description}</p>
     </div>
   );
 }

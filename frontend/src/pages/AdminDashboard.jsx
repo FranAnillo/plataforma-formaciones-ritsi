@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import EscuelaFormacionDashboard from './EscuelaFormacionDashboard';
 import axios from 'axios';
+import { ThemeToggleButton } from '../components/ThemeToggleButton';
 import { toast } from 'sonner';
 import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
 
@@ -56,20 +57,21 @@ export default function AdminDashboard({ user, onLogout }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100" style={{ fontFamily: 'Exo, sans-serif' }}>
-      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200" style={{ fontFamily: 'Exo, sans-serif' }}>
+      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
             <div>
-              <h1 className="text-xl font-bold text-gray-800">Plataforma Formativa</h1>
-              <p className="text-sm text-gray-600">Administrador</p>
+              <h1 className="text-xl font-bold">Plataforma Formativa</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Administrador</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-full">
-              <User className="w-4 h-4 text-gray-600" />
-              <span className="text-sm text-gray-700">{user.name}</span>
+            <ThemeToggleButton />
+            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-full">
+              <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              <span className="text-sm font-medium">{user.name}</span>
             </div>
             <Button
               data-testid="logout-button"
@@ -87,10 +89,10 @@ export default function AdminDashboard({ user, onLogout }) {
 
       <main className="container mx-auto px-6 py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-800 mb-2">
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             Panel de Administración
           </h2>
-          <p className="text-gray-600">Gestión completa de la plataforma</p>
+          <p className="text-gray-600 dark:text-gray-400">Gestión completa de la plataforma</p>
         </div>
 
         {/* Stats */}

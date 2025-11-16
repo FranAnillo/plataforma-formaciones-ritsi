@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import axios from 'axios';
 import { toast } from 'sonner';
 import logo from '../static/1710_Isotipo_Degradado.png';
+import { ThemeToggleButton } from '../components/ThemeToggleButton';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -54,38 +55,39 @@ export default function RepresentativeDashboard({ user, onLogout }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
         <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700">Cargando...</p>
+          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-red-100" style={{ fontFamily: 'Exo, sans-serif' }}>
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
             <div>
-              <h1 className="text-xl font-bold text-gray-800">Plataforma Formativa</h1>
-              <p className="text-sm text-gray-600">Representante</p>
+              <h1 className="text-xl font-bold">Plataforma Formativa</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Representante</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-full">
-              <User className="w-4 h-4 text-gray-600" />
-              <span className="text-sm text-gray-700">{user.name}</span>
+            <ThemeToggleButton />
+            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-full">
+              <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              <span className="text-sm font-medium">{user.name}</span>
             </div>
             <Button
               data-testid="logout-button"
               onClick={onLogout}
               variant="ghost"
               size="sm"
-              className="hover:bg-red-50 hover:text-red-600"
+              className="hover:bg-red-50 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400"
             >
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar Sesión
@@ -97,17 +99,15 @@ export default function RepresentativeDashboard({ user, onLogout }) {
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-800 mb-2">
-            Mi Contenido Formativo
-          </h2>
-          <p className="text-gray-600">Completa los contenidos y cuestionarios asignados</p>
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Mi Contenido Formativo</h2>
+          <p className="text-gray-600 dark:text-gray-400">Completa los contenidos y cuestionarios asignados</p>
         </div>
 
         {contents.length === 0 ? (
-          <Card className="text-center py-12">
+          <Card className="text-center py-12 bg-white dark:bg-gray-800/50">
             <CardContent>
-              <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 text-lg">No tienes contenido asignado aún</p>
+              <BookOpen className="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-600 dark:text-gray-400 text-lg">No tienes contenido asignado aún</p>
             </CardContent>
           </Card>
         ) : (
@@ -121,7 +121,7 @@ export default function RepresentativeDashboard({ user, onLogout }) {
                 <Card
                   key={content.id}
                   data-testid={`content-card-${content.id}`}
-                  className="hover:shadow-lg transition-all border-2 hover:border-red-200 cursor-pointer"
+                  className="bg-white dark:bg-gray-800/50 hover:shadow-lg transition-all border-2 border-gray-200 dark:border-gray-800 hover:border-red-300 dark:hover:border-red-500/50 cursor-pointer"
                   onClick={() => navigate(`/content/${content.id}`)}
                 >
                   <CardHeader>
@@ -133,13 +133,11 @@ export default function RepresentativeDashboard({ user, onLogout }) {
                         </span>
                       )}
                     </CardTitle>
-                    {content.description && (
-                      <CardDescription className="line-clamp-2">{content.description}</CardDescription>
-                    )}
+                    {content.description && <CardDescription className="line-clamp-2">{content.description}</CardDescription>}
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <BookOpen className="w-4 h-4" />
                         <span>{content.files.length} archivos</span>
                         <span className="mx-2">•</span>
@@ -147,8 +145,8 @@ export default function RepresentativeDashboard({ user, onLogout }) {
                       </div>
                       
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 flex items-center gap-1">
+                        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                          <span className="flex items-center gap-1">
                             <TrendingUp className="w-4 h-4" />
                             Progreso
                           </span>

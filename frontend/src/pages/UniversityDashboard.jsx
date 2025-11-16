@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label';
 import axios from 'axios';
 import { toast } from 'sonner';
 import logo from '../static/1710_Isotipo_Degradado.png';
+import { ThemeToggleButton } from '../components/ThemeToggleButton';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -62,37 +63,38 @@ export default function UniversityDashboard({ user, onLogout }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
         <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700">Cargando...</p>
+          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-red-100" style={{ fontFamily: 'Exo, sans-serif' }}>
-      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
+      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
             <div>
-              <h1 className="text-xl font-bold text-gray-800">Plataforma Formativa</h1>
-              <p className="text-sm text-gray-600">Universidad</p>
+              <h1 className="text-xl font-bold">Plataforma Formativa</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Universidad</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-full">
-              <User className="w-4 h-4 text-gray-600" />
-              <span className="text-sm text-gray-700">{user.name}</span>
+            <ThemeToggleButton />
+            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-full">
+              <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              <span className="text-sm font-medium">{user.name}</span>
             </div>
             <Button
               data-testid="logout-button"
               onClick={onLogout}
               variant="ghost"
               size="sm"
-              className="hover:bg-red-50 hover:text-red-600"
+              className="hover:bg-red-50 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400"
             >
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar Sesión
@@ -104,10 +106,8 @@ export default function UniversityDashboard({ user, onLogout }) {
       <main className="container mx-auto px-6 py-8">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">
-              Gestión de Representantes
-            </h2>
-            <p className="text-gray-600">Asigna contenido formativo a tus representantes</p>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Gestión de Representantes</h2>
+            <p className="text-gray-600 dark:text-gray-400">Asigna contenido formativo a tus representantes</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
@@ -116,16 +116,16 @@ export default function UniversityDashboard({ user, onLogout }) {
                 Asignar Contenido
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-white dark:bg-gray-900">
               <DialogHeader>
                 <DialogTitle>Asignar Contenido Formativo</DialogTitle>
               </DialogHeader>
               <div className="space-y-6 mt-4">
                 <div>
                   <Label className="text-base font-semibold mb-3 block">Selecciona Contenido</Label>
-                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                  <div className="space-y-2 max-h-48 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
                     {contents.map((content) => (
-                      <div key={content.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
+                      <div key={content.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
                         <input
                           type="radio"
                           id={`content-${content.id}`}
@@ -144,9 +144,9 @@ export default function UniversityDashboard({ user, onLogout }) {
 
                 <div>
                   <Label className="text-base font-semibold mb-3 block">Selecciona Representantes</Label>
-                  <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+                  <div className="space-y-2 max-h-64 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
                     {representatives.map((rep) => (
-                      <div key={rep.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
+                      <div key={rep.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
                         <Checkbox
                           id={`rep-${rep.id}`}
                           checked={selectedUsers.includes(rep.id)}
@@ -161,7 +161,7 @@ export default function UniversityDashboard({ user, onLogout }) {
                         <Label htmlFor={`rep-${rep.id}`} className="cursor-pointer flex-1">
                           <div>
                             <p className="font-medium">{rep.name}</p>
-                            <p className="text-sm text-gray-500">{rep.email}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{rep.email}</p>
                           </div>
                         </Label>
                       </div>
@@ -182,7 +182,7 @@ export default function UniversityDashboard({ user, onLogout }) {
         </div>
 
         <div className="grid gap-6">
-          <Card>
+          <Card className="bg-white dark:bg-gray-800/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
@@ -191,11 +191,11 @@ export default function UniversityDashboard({ user, onLogout }) {
             </CardHeader>
             <CardContent>
               {representatives.length === 0 ? (
-                <p className="text-gray-600 text-center py-8">No hay representantes registrados aún</p>
+                <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay representantes registrados aún</p>
               ) : (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {representatives.map((rep) => (
-                    <Card key={rep.id} className="hover:shadow-lg transition-shadow">
+                    <Card key={rep.id} className="hover:shadow-lg transition-shadow bg-white dark:bg-gray-800">
                       <CardContent className="pt-6">
                         <div className="flex items-start gap-3">
                           {rep.picture ? (
@@ -206,8 +206,8 @@ export default function UniversityDashboard({ user, onLogout }) {
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-800 truncate">{rep.name}</p>
-                            <p className="text-sm text-gray-600 truncate">{rep.email}</p>
+                            <p className="font-semibold truncate">{rep.name}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{rep.email}</p>
                           </div>
                         </div>
                       </CardContent>
@@ -218,7 +218,7 @@ export default function UniversityDashboard({ user, onLogout }) {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-white dark:bg-gray-800/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BookOpen className="w-5 h-5" />
@@ -227,16 +227,16 @@ export default function UniversityDashboard({ user, onLogout }) {
             </CardHeader>
             <CardContent>
               {contents.length === 0 ? (
-                <p className="text-gray-600 text-center py-8">No hay contenidos disponibles</p>
+                <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay contenidos disponibles</p>
               ) : (
                 <div className="space-y-3">
                   {contents.map((content) => (
-                    <div key={content.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                      <h4 className="font-semibold text-gray-800">{content.title}</h4>
+                    <div key={content.id} className="border dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <h4 className="font-semibold">{content.title}</h4>
                       {content.description && (
-                        <p className="text-sm text-gray-600 mt-1">{content.description}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{content.description}</p>
                       )}
-                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
                         <span>{content.files.length} archivos</span>
                         <span>•</span>
                         <span>{content.quizzes.length} cuestionarios</span>

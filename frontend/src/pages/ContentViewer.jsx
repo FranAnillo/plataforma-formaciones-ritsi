@@ -9,6 +9,7 @@ import { Label } from '../components/ui/label';
 import { Progress } from '../components/ui/progress';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { ThemeToggleButton } from '../components/ThemeToggleButton';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -214,10 +215,10 @@ export default function ContentViewer({ user }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
         <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700">Cargando contenido...</p>
+          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando contenido...</p>
         </div>
       </div>
     );
@@ -225,7 +226,7 @@ export default function ContentViewer({ user }) {
 
   if (!content) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
         <p>Contenido no encontrado</p>
       </div>
     );
@@ -235,22 +236,25 @@ export default function ContentViewer({ user }) {
   const currentQuiz = content.quizzes[currentQuizIndex];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-red-100" style={{ fontFamily: 'Exo, sans-serif' }}>
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4">
-          <Button
-            data-testid="back-button"
-            onClick={() => navigate('/dashboard')}
-            variant="ghost"
-            className="mb-2 hover:bg-gray-100"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Volver al Dashboard
-          </Button>
-          <h1 className="text-2xl font-bold text-gray-800">{content.title}</h1>
+          <div className="flex justify-between items-center mb-2">
+            <Button
+              data-testid="back-button"
+              onClick={() => navigate('/dashboard')}
+              variant="ghost"
+              className="hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Volver al Dashboard
+            </Button>
+            <ThemeToggleButton />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{content.title}</h1>
           {content.description && (
-            <p className="text-gray-600 mt-1">{content.description}</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">{content.description}</p>
           )}
         </div>
       </header>
@@ -260,7 +264,7 @@ export default function ContentViewer({ user }) {
           {/* Main Content */}
           <div className="lg:col-span-2">
             {currentSection === 'files' && currentFile && (
-              <Card>
+              <Card className="bg-white dark:bg-gray-800/50">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -272,7 +276,7 @@ export default function ContentViewer({ user }) {
                     )}
                   </CardTitle>
                   {currentFile.description && (
-                    <p className="text-gray-600 text-sm">{currentFile.description}</p>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm">{currentFile.description}</p>
                   )}
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -293,16 +297,16 @@ export default function ContentViewer({ user }) {
             )}
 
             {currentSection === 'quiz' && currentQuiz && (
-              <Card>
+              <Card className="bg-white dark:bg-gray-800/50">
                 <CardHeader>
                   <CardTitle>{currentQuiz.title}</CardTitle>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     Necesitas {currentQuiz.passing_percentage}% para aprobar
                   </p>
                   {!canAccessQuizzes() && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900/30 rounded-lg p-4 flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                      <p className="text-sm text-yellow-800">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
                         Debes completar todos los archivos antes de acceder a los cuestionarios
                       </p>
                     </div>
@@ -312,7 +316,7 @@ export default function ContentViewer({ user }) {
                   {canAccessQuizzes() ? (
                     <div className="space-y-6">
                       {currentQuiz.questions.map((question, qIndex) => (
-                        <Card key={question.id} className="bg-gray-50">
+                        <Card key={question.id} className="bg-gray-50 dark:bg-gray-800">
                           <CardContent className="pt-6">
                             <p className="font-medium text-gray-800 mb-4">
                               {qIndex + 1}. {question.question_text}
@@ -329,7 +333,7 @@ export default function ContentViewer({ user }) {
                                 }}
                               >
                                 {question.options.map((option, optIndex) => (
-                                  <div key={optIndex} className="flex items-center space-x-2 p-2 hover:bg-white rounded transition-colors">
+                                  <div key={optIndex} className="flex items-center space-x-2 p-2 hover:bg-white dark:hover:bg-gray-700/50 rounded transition-colors">
                                     <RadioGroupItem value={optIndex.toString()} id={`${question.id}-${optIndex}`} />
                                     <Label htmlFor={`${question.id}-${optIndex}`} className="cursor-pointer flex-1">
                                       {option}
@@ -351,7 +355,7 @@ export default function ContentViewer({ user }) {
                               >
                                 {question.options.map((option, optIndex) => (
                                   <div key={optIndex} className="flex items-center space-x-2 p-2 hover:bg-white rounded transition-colors">
-                                    <RadioGroupItem value={optIndex.toString()} id={`${question.id}-${optIndex}`} />
+                                    <RadioGroupItem value={optIndex.toString()} id={`${question.id}-${optIndex}`} className="dark:text-white" />
                                     <Label htmlFor={`${question.id}-${optIndex}`} className="cursor-pointer flex-1">
                                       {option}
                                     </Label>
@@ -363,7 +367,7 @@ export default function ContentViewer({ user }) {
                             {question.question_type === 'multiple_response' && (
                               <div className="space-y-2">
                                 {question.options.map((option, optIndex) => (
-                                  <div key={optIndex} className="flex items-center space-x-2 p-2 hover:bg-white rounded transition-colors">
+                                  <div key={optIndex} className="flex items-center space-x-2 p-2 hover:bg-white dark:hover:bg-gray-700/50 rounded transition-colors">
                                     <Checkbox
                                       id={`${question.id}-${optIndex}`}
                                       checked={quizAnswers[question.id]?.includes(optIndex)}
@@ -403,7 +407,7 @@ export default function ContentViewer({ user }) {
                       </Button>
                     </div>
                   ) : (
-                    <p className="text-center text-gray-600 py-8">
+                    <p className="text-center text-gray-600 dark:text-gray-400 py-8">
                       Completa todos los archivos para acceder al cuestionario
                     </p>
                   )}
@@ -414,14 +418,14 @@ export default function ContentViewer({ user }) {
 
           {/* Sidebar */}
           <div className="lg:col-span-1">
-            <Card className="sticky top-24">
+            <Card className="sticky top-24 bg-white dark:bg-gray-800/50">
               <CardHeader>
                 <CardTitle className="text-lg">Progreso</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Files Progress */}
                 <div>
-                  <h3 className="font-semibold text-sm text-gray-700 mb-2">Archivos</h3>
+                  <h3 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-2">Archivos</h3>
                   <div className="space-y-2">
                     {content.files.map((file, index) => (
                       <button
@@ -432,8 +436,8 @@ export default function ContentViewer({ user }) {
                         }}
                         className={`w-full text-left p-3 rounded-lg transition-all ${
                           currentSection === 'files' && currentFileIndex === index
-                            ? 'bg-red-100 border-2 border-red-400'
-                            : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                            ? 'bg-red-100 dark:bg-red-500/20 border-2 border-red-400 dark:border-red-500'
+                            : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border-2 border-transparent'
                         }`}
                       >
                         <div className="flex items-center justify-between">
@@ -453,7 +457,7 @@ export default function ContentViewer({ user }) {
                 {/* Quizzes Progress */}
                 {content.quizzes.length > 0 && (
                   <div>
-                    <h3 className="font-semibold text-sm text-gray-700 mb-2">Cuestionarios</h3>
+                    <h3 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-2">Cuestionarios</h3>
                     <div className="space-y-2">
                       {content.quizzes.map((quiz, index) => (
                         <button
@@ -467,10 +471,10 @@ export default function ContentViewer({ user }) {
                           disabled={!canAccessQuizzes()}
                           className={`w-full text-left p-3 rounded-lg transition-all ${
                             currentSection === 'quiz' && currentQuizIndex === index
-                              ? 'bg-red-100 border-2 border-red-400'
+                              ? 'bg-red-100 dark:bg-red-500/20 border-2 border-red-400 dark:border-red-500'
                               : canAccessQuizzes()
-                              ? 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
-                              : 'bg-gray-100 opacity-50 cursor-not-allowed border-2 border-transparent'
+                              ? 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border-2 border-transparent'
+                              : 'bg-gray-100 dark:bg-gray-800 opacity-50 cursor-not-allowed border-2 border-transparent'
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -488,7 +492,7 @@ export default function ContentViewer({ user }) {
                 {/* Overall Progress */}
                 <div className="pt-4 border-t">
                   <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-600">Total</span>
+                    <span className="text-gray-600 dark:text-gray-400">Total</span>
                     <span className="font-semibold">
                       {(progress?.files_completed?.length || 0) + Object.values(progress?.quizzes_completed || {}).filter(q => q.passed).length}
                       {' / '}
