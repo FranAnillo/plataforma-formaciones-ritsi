@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { BookOpen, LogOut, User, Users, Building2, GraduationCap, FileText } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import EscuelaFormacionDashboard from './EscuelaFormacionDashboard';
 import axios from 'axios';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
@@ -11,6 +10,14 @@ import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+const roleNames = {
+  admin: 'Administrador',
+  escuela_formacion: 'Escuela de Formación',
+  junta_directiva: 'Junta Directiva',
+  universidad: 'Universidad',
+  representante: 'Representante',
+};
 
 export default function AdminDashboard({ user, onLogout }) {
   const [stats, setStats] = useState({
@@ -64,7 +71,7 @@ export default function AdminDashboard({ user, onLogout }) {
             <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
             <div>
               <h1 className="text-xl font-bold">Plataforma Formativa</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Administrador</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{roleNames[user.user_type] || 'Usuario'}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -139,14 +146,12 @@ export default function AdminDashboard({ user, onLogout }) {
         </div>
 
         {/* Admin Content - Reuse Escuela Formacion Dashboard */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Gestión de Contenidos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <EscuelaFormacionDashboard user={user} onLogout={onLogout} />
-          </CardContent>
-        </Card>
+        {/* 
+          El componente EscuelaFormacionDashboard ahora se renderiza directamente 
+          para el rol 'escuela_formacion'. Para el rol 'admin', su contenido 
+          se integra aquí para evitar duplicados.
+        */}
+        <EscuelaFormacionDashboard user={user} onLogout={onLogout} showHeader={false} />
       </main>
     </div>
   );

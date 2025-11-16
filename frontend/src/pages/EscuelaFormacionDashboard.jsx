@@ -17,7 +17,16 @@ import { ThemeToggleButton } from '../components/ThemeToggleButton';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-export default function EscuelaFormacionDashboard({ user, onLogout }) {
+const roleNames = {
+  admin: 'Administrador',
+  escuela_formacion: 'Escuela de Formación',
+  junta_directiva: 'Junta Directiva',
+  universidad: 'Universidad',
+  representante: 'Representante',
+};
+
+export default function EscuelaFormacionDashboard({ user, onLogout, showHeader = true }) {
+  console.log(user.user_type);
   const [contents, setContents] = useState([]);
   const [representatives, setRepresentatives] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -264,41 +273,11 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
-            <div>
-              <h1 className="text-xl font-bold">Plataforma Formativa</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Escuela de Formación</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <ThemeToggleButton />
-            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-full">
-              <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-              <span className="text-sm font-medium">{user.name}</span>
-            </div>
-            <Button
-              data-testid="logout-button"
-              onClick={onLogout}
-              variant="ghost"
-              size="sm"
-              className="hover:bg-red-50 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Cerrar Sesión
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-6 py-8">
+  const dashboardContent = (
+    <>
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Gestión de Contenidos</h2>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{showHeader ? 'Panel de Escuela de Formación' : 'Gestión de Contenidos'}</h2>
             <p className="text-gray-600 dark:text-gray-400">Crea y asigna contenidos formativos</p>
           </div>
           <div className="flex gap-3">
@@ -652,7 +631,46 @@ export default function EscuelaFormacionDashboard({ user, onLogout }) {
  </div>
  )}
  </CardContent>
- </Card>
+      </Card>
+    </>
+  );
+
+  if (!showHeader) {
+    return dashboardContent;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
+      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
+        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
+            <div>
+              <h1 className="text-xl font-bold">Plataforma Formativa</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{roleNames[user.user_type] || 'Usuario'}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <ThemeToggleButton />
+            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-full">
+              <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              <span className="text-sm font-medium">{user.name}</span>
+            </div>
+            <Button
+              data-testid="logout-button"
+              onClick={onLogout}
+              variant="ghost"
+              size="sm"
+              className="hover:bg-red-50 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Cerrar Sesión
+            </Button>
+          </div>
+        </div>
+      </header>
+      <main className="container mx-auto px-6 py-8">
+        {dashboardContent}
       </main>
     </div>
   );

@@ -13,6 +13,14 @@ import { ThemeToggleButton } from '../components/ThemeToggleButton';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+const roleNames = {
+  admin: 'Administrador',
+  escuela_formacion: 'Escuela de Formación',
+  junta_directiva: 'Junta Directiva',
+  universidad: 'Universidad',
+  representante: 'Representante',
+};
+
 export default function UniversityDashboard({ user, onLogout }) {
   const [representatives, setRepresentatives] = useState([]);
   const [contents, setContents] = useState([]);
@@ -80,7 +88,7 @@ export default function UniversityDashboard({ user, onLogout }) {
             <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
             <div>
               <h1 className="text-xl font-bold">Plataforma Formativa</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Universidad</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{roleNames[user.user_type] || 'Usuario'}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
