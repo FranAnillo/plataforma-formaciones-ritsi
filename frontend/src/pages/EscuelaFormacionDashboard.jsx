@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
-import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, ArrowUp, ArrowDown } from 'lucide-react';
+import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, GripVertical } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -52,6 +52,11 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
   const [assignCategoryFilter, setAssignCategoryFilter] = useState('all');
   const [assignToAll, setAssignToAll] = useState(false);
 
+  // Drag and drop state
+  const dragItem = useRef(null);
+  const dragOverItem = useRef(null);
+
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -87,26 +92,22 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     setFiles(files.filter((_, i) => i !== index));
   };
 
-  const moveFile = (index, direction) => {
+  const handleFileSort = () => {
     const newFiles = [...files];
-    if (direction === 'up' && index > 0) {
-      [newFiles[index - 1], newFiles[index]] = [newFiles[index], newFiles[index - 1]];
-      setFiles(newFiles);
-    } else if (direction === 'down' && index < files.length - 1) {
-      [newFiles[index + 1], newFiles[index]] = [newFiles[index], newFiles[index + 1]];
-      setFiles(newFiles);
-    }
+    const draggedItemContent = newFiles.splice(dragItem.current, 1)[0];
+    newFiles.splice(dragOverItem.current, 0, draggedItemContent);
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setFiles(newFiles);
   };
 
-  const moveQuiz = (index, direction) => {
+  const handleQuizSort = () => {
     const newQuizzes = [...quizzes];
-    if (direction === 'up' && index > 0) {
-      [newQuizzes[index - 1], newQuizzes[index]] = [newQuizzes[index], newQuizzes[index - 1]];
-      setQuizzes(newQuizzes);
-    } else if (direction === 'down' && index < quizzes.length - 1) {
-      [newQuizzes[index + 1], newQuizzes[index]] = [newQuizzes[index], newQuizzes[index + 1]];
-      setQuizzes(newQuizzes);
-    }
+    const draggedItemContent = newQuizzes.splice(dragItem.current, 1)[0];
+    newQuizzes.splice(dragOverItem.current, 0, draggedItemContent);
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setQuizzes(newQuizzes);
   };
 
   const addQuiz = () => {
@@ -459,19 +460,22 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                     </div>
                     <div className="space-y-4">
                       {files.map((file, index) => (
-                        <Card key={index} className="bg-gray-50 dark:bg-gray-900">
+                        <Card 
+                          key={index} 
+                          draggable
+                          onDragStart={() => (dragItem.current = index)}
+                          onDragEnter={() => (dragOverItem.current = index)}
+                          onDragEnd={handleFileSort}
+                          onDragOver={(e) => e.preventDefault()}
+                          className={`bg-gray-50 dark:bg-gray-900 cursor-grab transition-shadow ${dragItem.current === index ? 'shadow-2xl' : ''}`}
+                        >
                           <CardContent className="pt-6 space-y-3">
                             <div className="flex justify-between items-start">
-                              <div>
+                              <div className="flex items-center gap-2">
+                                <GripVertical className="w-5 h-5 text-gray-400" />
                                 <span className="font-medium text-sm">Archivo {index + 1}</span>
                               </div>
                               <div className="flex items-center gap-1">
-                                <Button type="button" variant="ghost" size="icon" onClick={() => moveFile(index, 'up')} disabled={index === 0}>
-                                  <ArrowUp className="w-4 h-4" />
-                                </Button>
-                                <Button type="button" variant="ghost" size="icon" onClick={() => moveFile(index, 'down')} disabled={index === files.length - 1}>
-                                  <ArrowDown className="w-4 h-4" />
-                                </Button>
                                 <Button
                                   onClick={() => removeFile(index)}
                                   size="sm"
@@ -524,19 +528,22 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                     </div>
                     <div className="space-y-6">
                       {quizzes.map((quiz, quizIndex) => (
-                        <Card key={quizIndex} className="bg-blue-50 dark:bg-blue-900/20">
+                        <Card 
+                          key={quizIndex} 
+                          draggable
+                          onDragStart={() => (dragItem.current = quizIndex)}
+                          onDragEnter={() => (dragOverItem.current = quizIndex)}
+                          onDragEnd={handleQuizSort}
+                          onDragOver={(e) => e.preventDefault()}
+                          className={`bg-blue-50 dark:bg-blue-900/20 cursor-grab transition-shadow ${dragItem.current === quizIndex ? 'shadow-2xl' : ''}`}
+                        >
                           <CardContent className="pt-6 space-y-4">
                             <div className="flex justify-between items-start">
-                              <div>
+                              <div className="flex items-center gap-2">
+                                <GripVertical className="w-5 h-5 text-gray-400" />
                                 <span className="font-semibold">Cuestionario {quizIndex + 1}</span>
                               </div>
                               <div className="flex items-center gap-1">
-                                <Button type="button" variant="ghost" size="icon" onClick={() => moveQuiz(quizIndex, 'up')} disabled={quizIndex === 0}>
-                                  <ArrowUp className="w-4 h-4" />
-                                </Button>
-                                <Button type="button" variant="ghost" size="icon" onClick={() => moveQuiz(quizIndex, 'down')} disabled={quizIndex === quizzes.length - 1}>
-                                  <ArrowDown className="w-4 h-4" />
-                                </Button>
                                 <Button
                                   onClick={() => removeQuiz(quizIndex)}
                                   size="sm"
