@@ -41,3 +41,36 @@ Esta es la plataforma formativa de la **Reunión de Estudiantes de Ingenierías 
 ```bash
 python3 /app/scripts/init_universities.py
 ```
+
+# Diagrama del servicio:
+
+## Arquitectura
+
+La plataforma sigue una arquitectura cliente-servidor desacoplada, utilizando React para el frontend y FastAPI para el backend.
+ 
+```mermaid
+graph TD
+    subgraph "Usuario Final"
+        User[👤 Usuario]
+    end
+
+    subgraph "Infraestructura Frontend"
+        Frontend[⚛️ Frontend (React + Tailwind CSS)]
+    end
+
+    subgraph "Infraestructura Backend"
+        Backend[🐍 Backend (FastAPI)] --> Database[(🍃 Base de Datos MongoDB)]
+    end
+
+    subgraph "Servicios Externos"
+        Auth[🔐 Emergent Auth (OAuth)]
+        Drive[📄 Google Drive (Archivos)]
+    end
+
+    User -- HTTPS --> Frontend
+    Frontend -- API REST --> Backend
+    Frontend -- Redirección OAuth --> Auth
+    Auth -- Token de Sesión --> Frontend
+    Frontend -- Incrusta Contenido de --> Drive
+```
+
