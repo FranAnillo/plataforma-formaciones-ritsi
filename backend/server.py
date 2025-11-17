@@ -68,6 +68,12 @@ class University(BaseModel):
     description: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class Category(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 class ContentFile(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -97,6 +103,7 @@ class TrainingContent(BaseModel):
     title: str
     description: Optional[str] = None
     files: List[ContentFile] = []
+    category_ids: List[str] = []
     quizzes: List[Quiz] = []
     created_by: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -130,6 +137,9 @@ class UniversityCreate(BaseModel):
     name: str
     description: Optional[str] = None
 
+class CategoryCreate(BaseModel):
+    name: str
+
 class ContentFileCreate(BaseModel):
     file_type: FileType
     google_drive_url: str
@@ -150,6 +160,7 @@ class QuizCreate(BaseModel):
 class TrainingContentCreate(BaseModel):
     title: str
     description: Optional[str] = None
+    category_ids: List[str] = []
     files: List[ContentFileCreate] = []
     quizzes: List[QuizCreate] = []
 
@@ -323,6 +334,76 @@ async def create_university(request: UniversityCreate, current_user: User = Depe
     
     return university
 
+# Categories endpoints
+@api_router.get("/categories", response_model=List[Category])
+async def get_categories():
+    categories = await db.categories.find({}, {"_id": 0}).to_list(1000)
+    return [Category(**c) for c in categories]
+
+@api_router.post("/categories", response_model=Category)
+async def create_category(request: CategoryCreate, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para crear categorías"
+        )
+
+    # Check if category already exists (case-insensitive)
+    existing_category = await db.categories.find_one({"name": {"$regex": f"^{request.name}$", "$options": "i"}})
+    if existing_category:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"La categoría '{request.name}' ya existe"
+        )
+
+    category = Category(name=request.name)
+    category_dict = category.model_dump()
+    category_dict["created_at"] = category_dict["created_at"].isoformat()
+    await db.categories.insert_one(category_dict)
+
+    return category
+
+@api_router.put("/categories/{category_id}", response_model=Category)
+async def update_category(category_id: str, request: CategoryCreate, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para editar categorías"
+        )
+
+    # Check if another category with the same name exists (case-insensitive)
+    existing_category = await db.categories.find_one({
+        "name": {"$regex": f"^{request.name}$", "$options": "i"},
+        "id": {"$ne": category_id}
+    })
+    if existing_category:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"La categoría '{request.name}' ya existe"
+        )
+
+    update_result = await db.categories.update_one(
+        {"id": category_id},
+        {"$set": {"name": request.name}}
+    )
+
+    if update_result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+
+    updated_category = await db.categories.find_one({"id": category_id}, {"_id": 0})
+    return Category(**updated_category)
+
+@api_router.delete("/categories/{category_id}")
+async def delete_category(category_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para eliminar categorías")
+
+    await db.training_contents.update_many({}, {"$pull": {"category_ids": category_id}})
+    delete_result = await db.categories.delete_one({"id": category_id})
+    if delete_result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    return {"message": "Categoría eliminada exitosamente"}
+
 # Training Content endpoints
 @api_router.get("/content", response_model=List[TrainingContent])
 async def get_training_content(current_user: User = Depends(get_current_user)):
@@ -353,6 +434,15 @@ async def create_training_content(request: TrainingContentCreate, current_user: 
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tienes permisos para crear contenido formativo"
         )
+
+    # Validate category_ids
+    if request.category_ids:
+        categories_count = await db.categories.count_documents({"id": {"$in": request.category_ids}})
+        if categories_count != len(request.category_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Una o más categorías proporcionadas no son válidas"
+            )
     
     files = [ContentFile(**f.model_dump()) for f in request.files]
     quizzes = [
@@ -368,6 +458,7 @@ async def create_training_content(request: TrainingContentCreate, current_user: 
         title=request.title,
         description=request.description,
         files=files,
+        category_ids=request.category_ids,
         quizzes=quizzes,
         created_by=current_user.id
     )

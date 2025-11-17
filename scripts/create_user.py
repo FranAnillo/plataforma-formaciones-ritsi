@@ -58,10 +58,10 @@ async def main():
         client.close()
         return
 
-    # Si el rol es 'universidad', el ID de la universidad es obligatorio
-    if user_type == UserType.UNIVERSIDAD:
+    # Si el rol es 'universidad' o 'representante', el ID de la universidad es obligatorio
+    if user_type in [UserType.UNIVERSIDAD, UserType.REPRESENTANTE]:
         if not university_id:
-            print("Error: Para el rol 'universidad', debes proporcionar un 'id_universidad'.")
+            print(f"Error: Para el rol '{user_type.value}', debes proporcionar un 'id_universidad'.")
             sys.exit(1)
         # Opcional: Verificar que la universidad existe
         university = await db.universities.find_one({"id": university_id})
