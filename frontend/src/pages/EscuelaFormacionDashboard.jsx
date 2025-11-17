@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
-import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, GripVertical } from 'lucide-react';
+import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, GripVertical, Eye } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -27,6 +28,7 @@ const roleNames = {
 
 export default function EscuelaFormacionDashboard({ user, onLogout, showHeader = true }) {
   console.log(user.user_type);
+  const navigate = useNavigate();
   const [contents, setContents] = useState([]);
   const [categories, setCategories] = useState([]);
   const [representatives, setRepresentatives] = useState([]);
@@ -489,6 +491,13 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                                 >
                                   Eliminar
                                 </Button>
+                                <Button
+                                  onClick={() => navigate(`/content/${content.id}?preview=true`)}
+                                  size="sm"
+                                  variant="ghost"
+                                >
+                                  <Eye className="w-4 h-4 mr-2" /> Vista Previa
+                                </Button>
                               </div>
                             </div>
                             <Select value={file.file_type} onValueChange={(value) => updateFile(index, 'file_type', value)}>
@@ -558,6 +567,13 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                                   className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50"
                                 >
                                   Eliminar
+                                </Button>
+                                <Button
+                                  onClick={() => navigate(`/content/${content.id}?preview=true`)}
+                                  size="sm"
+                                  variant="ghost"
+                                >
+                                  <Eye className="w-4 h-4 mr-2" /> Vista Previa
                                 </Button>
                               </div>
                             </div>
@@ -797,10 +813,16 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
  ))}
  </div>
  )}
- <Button onClick={() => handleDeleteContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
- <Trash2 className="w-4 h-4 mr-2" />
- Eliminar
- </Button>
+  <div className="flex items-center">
+    <Button onClick={() => navigate(`/content/${content.id}?preview=true`)} variant="ghost" size="sm">
+      <Eye className="w-4 h-4 mr-2" />
+      Vista Previa
+    </Button>
+    <Button onClick={() => handleDeleteContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+      <Trash2 className="w-4 h-4 mr-2" />
+      Eliminar
+    </Button>
+  </div>
  </div>
  <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
                         <span className="flex items-center gap-1">
