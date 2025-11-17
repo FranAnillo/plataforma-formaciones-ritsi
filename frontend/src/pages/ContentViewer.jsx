@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, FileText, Image as ImageIcon, Video, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -17,6 +17,8 @@ const API = `${BACKEND_URL}/api`;
 export default function ContentViewer({ user }) {
   const { contentId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isPreviewMode = new URLSearchParams(location.search).get('preview') === 'true';
   const [content, setContent] = useState(null);
   const [progress, setProgress] = useState(null);
   const [currentSection, setCurrentSection] = useState('files'); // 'files' or 'quiz'
@@ -29,6 +31,11 @@ export default function ContentViewer({ user }) {
   useEffect(() => {
     fetchData();
   }, [contentId]);
+
+  useEffect(() => {
+    // In preview mode, we don't fetch real progress, we simulate it.
+    if (isPreviewMode) setProgress({ files_completed: [], quizzes_completed: {} });
+  }, [isPreviewMode]);
 
   const fetchData = async () => {
     try {
@@ -67,6 +74,11 @@ export default function ContentViewer({ user }) {
   };
 
   const handleMarkFileCompleted = async () => {
+    if (isPreviewMode) {
+      toast.info('La finalización de archivos está deshabilitada en el modo de vista previa.');
+      return;
+    }
+
     const currentFile = content.files[currentFileIndex];
     
     try {
@@ -95,6 +107,11 @@ export default function ContentViewer({ user }) {
   };
 
   const handleSubmitQuiz = async () => {
+    if (isPreviewMode) {
+      toast.info('El envío de cuestionarios está deshabilitado en el modo de vista previa.');
+      return;
+    }
+
     const currentQuiz = content.quizzes[currentQuizIndex];
     
     // Validate all questions answered
