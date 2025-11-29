@@ -182,6 +182,9 @@ class AssignContentRequest(BaseModel):
 class UpdateUserCommissionsRequest(BaseModel):
     commission_ids: List[str]
 
+class AssignUsersToCommissionRequest(BaseModel):
+    user_ids: List[str]
+
 class MarkFileCompletedRequest(BaseModel):
     content_id: str
     file_id: str
@@ -346,6 +349,76 @@ async def create_university(request: UniversityCreate, current_user: User = Depe
     await db.universities.insert_one(university_dict)
     
     return university
+
+# Thematic Commissions endpoints
+@api_router.get("/thematic-commissions", response_model=List[ThematicCommission])
+async def get_thematic_commissions():
+    commissions = await db.thematic_commissions.find({}, {"_id": 0}).to_list(1000)
+    return [ThematicCommission(**c) for c in commissions]
+
+@api_router.post("/thematic-commissions", response_model=ThematicCommission)
+async def create_thematic_commission(request: ThematicCommissionCreate, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para crear comisiones temáticas")
+
+    existing_commission = await db.thematic_commissions.find_one({"name": {"$regex": f"^{request.name}$", "$options": "i"}})
+    if existing_commission:
+        raise HTTPException(status_code=400, detail=f"La comisión temática '{request.name}' ya existe")
+
+    commission = ThematicCommission(name=request.name)
+    commission_dict = commission.model_dump()
+    commission_dict["created_at"] = commission_dict["created_at"].isoformat()
+    await db.thematic_commissions.insert_one(commission_dict)
+    return commission
+
+@api_router.put("/thematic-commissions/{commission_id}", response_model=ThematicCommission)
+async def update_thematic_commission(commission_id: str, request: ThematicCommissionCreate, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para editar comisiones")
+
+    update_result = await db.thematic_commissions.update_one(
+        {"id": commission_id},
+        {"$set": {"name": request.name}}
+    )
+    if update_result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Comisión no encontrada")
+    
+    updated_commission = await db.thematic_commissions.find_one({"id": commission_id}, {"_id": 0})
+    return ThematicCommission(**updated_commission)
+
+@api_router.delete("/thematic-commissions/{commission_id}")
+async def delete_thematic_commission(commission_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para eliminar comisiones")
+
+    # Remove commission from all users
+    await db.users.update_many({}, {"$pull": {"thematic_commission_ids": commission_id}})
+    
+    delete_result = await db.thematic_commissions.delete_one({"id": commission_id})
+    if delete_result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Comisión no encontrada")
+    
+    return {"message": "Comisión eliminada exitosamente"}
+
+@api_router.put("/thematic-commissions/{commission_id}/assign-users")
+async def assign_users_to_commission(commission_id: str, request: AssignUsersToCommissionRequest, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para asignar usuarios a comisiones")
+
+    # First, remove this commission from all users to handle un-assignments
+    await db.users.update_many(
+        {"thematic_commission_ids": commission_id},
+        {"$pull": {"thematic_commission_ids": commission_id}}
+    )
+
+    # Now, add the commission to the selected users
+    if request.user_ids:
+        await db.users.update_many(
+            {"id": {"$in": request.user_ids}},
+            {"$addToSet": {"thematic_commission_ids": commission_id}} # Use $addToSet to avoid duplicates
+        )
+
+    return {"message": "Asignación de representantes a la comisión actualizada exitosamente"}
 
 # Categories endpoints
 @api_router.get("/categories", response_model=List[Category])

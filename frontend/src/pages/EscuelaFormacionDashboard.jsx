@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
-import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, GripVertical, Eye } from 'lucide-react';
+import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, GripVertical, Eye, Users } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -31,6 +31,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
   const navigate = useNavigate();
   const [contents, setContents] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [thematicCommissions, setThematicCommissions] = useState([]);
   const [representatives, setRepresentatives] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -39,6 +40,11 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
   // Category management states
   const [editCategory, setEditCategory] = useState(null);
   const [deleteCategory, setDeleteCategory] = useState(null);
+
+  // Thematic Commission management states
+  const [commissionDialogOpen, setCommissionDialogOpen] = useState(false);
+  const [editCommission, setEditCommission] = useState(null);
+  const [deleteCommission, setDeleteCommission] = useState(null);
 
   // Create content form states
   const [title, setTitle] = useState('');
@@ -66,14 +72,16 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
 
   const fetchData = async () => {
     try {
-      const [contentsRes, repsRes, catsRes] = await Promise.all([
+      const [contentsRes, repsRes, catsRes, commissionsRes] = await Promise.all([
         axios.get(`${API}/content`),
         axios.get(`${API}/representatives`),
-        axios.get(`${API}/categories`)
+        axios.get(`${API}/categories`),
+        axios.get(`${API}/thematic-commissions`)
       ]);
       setContents(contentsRes.data || []);
       setRepresentatives(repsRes.data);
       setCategories(catsRes.data || []);
+      setThematicCommissions(commissionsRes.data || []);
     } catch (error) {
       toast.error('Error al cargar datos');
     } finally {
@@ -336,6 +344,48 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
       setDeleteCategory(null);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al eliminar la categoría');
+    }
+  };
+
+  const handleCreateCommission = async (name) => {
+    if (!name.trim()) {
+      toast.error('El nombre de la comisión no puede estar vacío');
+      return;
+    }
+    try {
+      const response = await axios.post(`${API}/thematic-commissions`, { name });
+      toast.success(`Comisión "${response.data.name}" creada`);
+      setThematicCommissions([...thematicCommissions, response.data]);
+      setCommissionDialogOpen(false);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al crear la comisión');
+    }
+  };
+
+  const handleUpdateCommission = async () => {
+    if (!editCommission || !editCommission.name.trim()) {
+      toast.error('El nombre no puede estar vacío');
+      return;
+    }
+    try {
+      const response = await axios.put(`${API}/thematic-commissions/${editCommission.id}`, { name: editCommission.name });
+      toast.success('Comisión actualizada');
+      setThematicCommissions(thematicCommissions.map(c => c.id === editCommission.id ? response.data : c));
+      setEditCommission(null);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al actualizar la comisión');
+    }
+  };
+
+  const handleDeleteCommission = async () => {
+    if (!deleteCommission) return;
+    try {
+      await axios.delete(`${API}/thematic-commissions/${deleteCommission.id}`);
+      toast.success(`Comisión "${deleteCommission.name}" eliminada`);
+      setThematicCommissions(thematicCommissions.filter(c => c.id !== deleteCommission.id));
+      setDeleteCommission(null);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al eliminar la comisión');
     }
   };
 
