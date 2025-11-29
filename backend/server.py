@@ -50,6 +50,7 @@ class User(BaseModel):
     name: str
     picture: Optional[str] = None
     user_type: UserType
+    thematic_commission_ids: List[str] = []
     university_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -69,6 +70,12 @@ class University(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class Category(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ThematicCommission(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
@@ -140,6 +147,9 @@ class UniversityCreate(BaseModel):
 class CategoryCreate(BaseModel):
     name: str
 
+class ThematicCommissionCreate(BaseModel):
+    name: str
+
 class ContentFileCreate(BaseModel):
     file_type: FileType
     google_drive_url: str
@@ -168,6 +178,9 @@ class AssignContentRequest(BaseModel):
     content_id: str
     user_ids: Optional[List[str]] = None
     assign_to_all_representatives: bool = False
+
+class UpdateUserCommissionsRequest(BaseModel):
+    commission_ids: List[str]
 
 class MarkFileCompletedRequest(BaseModel):
     content_id: str
