@@ -8,17 +8,10 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import logo from '../static/1710_Isotipo_Degradado.png';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
+import { roleNames } from '../utils/roles';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-
-const roleNames = {
-  admin: 'Administrador',
-  escuela_formacion: 'Escuela de Formación',
-  junta_directiva: 'Junta Directiva',
-  universidad: 'Universidad',
-  representante: 'Representante',
-};
 
 export default function JuntaDashboard({ user, onLogout }) {
   const [representatives, setRepresentatives] = useState([]);
