@@ -30,6 +30,7 @@ class UserType(str, Enum):
     UNIVERSIDAD = "universidad"
     JUNTA_DIRECTIVA = "junta_directiva"
     ESCUELA_FORMACION = "escuela_formacion"
+    COLABORACION_EXTERNA = "colaboracion_externa"
     ADMIN = "admin"
 
 class QuestionType(str, Enum):
@@ -50,6 +51,7 @@ class User(BaseModel):
     name: str
     picture: Optional[str] = None
     user_type: UserType
+    is_active: bool = True
     university_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -102,6 +104,7 @@ class TrainingContent(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
     description: Optional[str] = None
+    is_public: bool = False
     files: List[ContentFile] = []
     category_ids: List[str] = []
     quizzes: List[Quiz] = []
@@ -126,6 +129,17 @@ class ContentAssignment(BaseModel):
     assigned_to_all_representatives: bool = False
     assigned_by: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ActivityLog(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    actor_id: str
+    actor_name: str
+    action: str
+    target_user_id: str
+    target_user_name: str
+    details: Optional[Dict[str, Any]] = None
 
 # Request/Response Models
 class RegisterRequest(BaseModel):
@@ -160,6 +174,7 @@ class QuizCreate(BaseModel):
 class TrainingContentCreate(BaseModel):
     title: str
     description: Optional[str] = None
+    is_public: bool = False
     category_ids: List[str] = []
     files: List[ContentFileCreate] = []
     quizzes: List[QuizCreate] = []
@@ -169,6 +184,26 @@ class AssignContentRequest(BaseModel):
     user_ids: Optional[List[str]] = None
     assign_to_all_representatives: bool = False
 
+class UnassignContentRequest(BaseModel):
+    user_id: str
+    content_id: str
+
+class UpdateUserRoleRequest(BaseModel):
+    user_type: UserType
+
+class UpdateUserStatusRequest(BaseModel):
+    is_active: bool
+
+class UserImport(BaseModel):
+    email: EmailStr
+    name: str
+    user_type: UserType
+    university_id: Optional[str] = None
+
+class UserImportRequest(BaseModel):
+    users: List[UserImport]
+
+
 class MarkFileCompletedRequest(BaseModel):
     content_id: str
     file_id: str
@@ -177,6 +212,20 @@ class SubmitQuizRequest(BaseModel):
     content_id: str
     quiz_id: str
     answers: Dict[str, List[int]]  # {question_id: [selected_option_indices]}
+
+# Helper function for logging
+async def log_activity(actor: User, action: str, target_user: Dict, details: Optional[Dict[str, Any]] = None):
+    log_entry = ActivityLog(
+        actor_id=actor.id,
+        actor_name=actor.name,
+        action=action,
+        target_user_id=target_user["id"],
+        target_user_name=target_user["name"],
+        details=details
+    )
+    log_dict = log_entry.model_dump()
+    log_dict["timestamp"] = log_dict["timestamp"].isoformat()
+    await db.activity_logs.insert_one(log_dict)
 
 # Auth dependency
 async def get_current_user(session_token: Optional[str] = Cookie(None)) -> User:
@@ -202,6 +251,12 @@ async def get_current_user(session_token: Optional[str] = Cookie(None)) -> User:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Usuario no encontrado"
+        )
+    
+    if not user.get("is_active", True):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="La cuenta de usuario está desactivada"
         )
     
     return User(**user)
@@ -300,6 +355,138 @@ async def register_user(request: RegisterRequest, current_user: User = Depends(g
     updated_user = await db.users.find_one({"id": current_user.id}, {"_id": 0})
     return User(**updated_user)
 
+@api_router.get("/users", response_model=List[User])
+async def get_all_users(current_user: User = Depends(get_current_user)):
+    if current_user.user_type != UserType.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para ver todos los usuarios"
+        )
+    users = await db.users.find({}, {"_id": 0}).to_list(1000)
+    return [User(**u) for u in users]
+
+@api_router.put("/users/{user_id}/role", response_model=User)
+async def update_user_role(user_id: str, request: UpdateUserRoleRequest, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != UserType.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para cambiar roles de usuario"
+        )
+    
+    user_to_update = await db.users.find_one({"id": user_id})
+    if not user_to_update:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    old_role = user_to_update.get("user_type")
+    new_role = request.user_type.value
+
+    if old_role != new_role:
+        await db.users.update_one({"id": user_id}, {"$set": {"user_type": new_role}})
+        await log_activity(
+            actor=current_user,
+            action="Cambio de rol",
+            target_user=user_to_update,
+            details={"from": old_role, "to": new_role}
+        )
+
+    updated_user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    return User(**updated_user)
+
+@api_router.put("/users/{user_id}/status", response_model=User)
+async def update_user_status(user_id: str, request: UpdateUserStatusRequest, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != UserType.ADMIN:
+        raise HTTPException(status_code=403, detail="No tienes permisos para cambiar el estado de un usuario")
+    if current_user.id == user_id:
+        raise HTTPException(status_code=400, detail="No puedes cambiar tu propio estado")
+
+    user_to_update = await db.users.find_one({"id": user_id})
+    if not user_to_update:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    await db.users.update_one({"id": user_id}, {"$set": {"is_active": request.is_active}})
+    await log_activity(
+        actor=current_user,
+        action="Cambio de estado",
+        target_user=user_to_update,
+        details={"status": "activado" if request.is_active else "desactivado"}
+    )
+    
+    return User(**user_to_update)
+
+@api_router.post("/users/import")
+async def import_users(request: UserImportRequest, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != UserType.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para importar usuarios"
+        )
+
+    created_count = 0
+    skipped_count = 0
+    errors = []
+
+    for i, user_data in enumerate(request.users):
+        try:
+            existing_user = await db.users.find_one({"email": user_data.email})
+            if existing_user:
+                skipped_count += 1
+                continue
+
+            if user_data.user_type in [UserType.UNIVERSIDAD, UserType.REPRESENTANTE]:
+                if not user_data.university_id:
+                    errors.append(f"Fila {i + 2}: Falta 'university_id' para el rol '{user_data.user_type.value}'")
+                    continue
+                university = await db.universities.find_one({"id": user_data.university_id})
+                if not university:
+                    errors.append(f"Fila {i + 2}: No se encontró universidad con ID '{user_data.university_id}'")
+                    continue
+
+            new_user = User(**user_data.model_dump())
+            user_dict = new_user.model_dump()
+            user_dict["created_at"] = user_dict["created_at"].isoformat()
+            await db.users.insert_one(user_dict)
+            created_count += 1
+        except Exception as e:
+            errors.append(f"Fila {i + 2}: Error inesperado - {str(e)}")
+
+    return {
+        "message": "Importación completada.",
+        "created": created_count,
+        "skipped": skipped_count,
+        "errors": errors
+    }
+
+@api_router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(user_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != UserType.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para eliminar usuarios"
+        )
+    
+    if current_user.id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No puedes eliminar tu propia cuenta"
+        )
+
+    # Find user to delete
+    user_to_delete = await db.users.find_one({"id": user_id})
+    if not user_to_delete:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+
+    # 1. Delete user sessions
+    await db.user_sessions.delete_many({"user_id": user_id})
+
+    # 2. Delete user progress
+    await db.user_progress.delete_many({"user_id": user_id})
+
+    # 3. Remove user from content assignments
+    await db.content_assignments.update_many({}, {"$pull": {"assigned_to_user_ids": user_id}})
+    
+    # 4. Delete the user
+    await db.users.delete_one({"id": user_id})
+
 @api_router.get("/auth/me")
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
@@ -312,6 +499,17 @@ async def logout(session_token: Optional[str] = Cookie(None)):
     response = JSONResponse(content={"success": True})
     response.delete_cookie(key="session_token", path="/")
     return response
+
+# Activity Log endpoint
+@api_router.get("/activity-log", response_model=List[ActivityLog])
+async def get_activity_log(current_user: User = Depends(get_current_user)):
+    if current_user.user_type != UserType.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para ver el registro de actividad"
+        )
+    logs = await db.activity_logs.find({}, {"_id": 0}).sort("timestamp", -1).to_list(1000)
+    return [ActivityLog(**log) for log in logs]
 
 # Universities endpoints
 @api_router.get("/universities", response_model=List[University])
@@ -407,18 +605,27 @@ async def delete_category(category_id: str, current_user: User = Depends(get_cur
 # Training Content endpoints
 @api_router.get("/content", response_model=List[TrainingContent])
 async def get_training_content(current_user: User = Depends(get_current_user)):
-    if current_user.user_type == UserType.REPRESENTANTE:
-        # Get assigned content
+    if current_user.user_type in [UserType.REPRESENTANTE, UserType.COLABORACION_EXTERNA]:
+        # Get assigned and public content
+        content_ids = set()
+
+        # Get assigned content IDs
         assignments = await db.content_assignments.find({
             "$or": [
                 {"assigned_to_user_ids": current_user.id},
                 {"assigned_to_all_representatives": True}
             ]
         }, {"_id": 0}).to_list(1000)
-        
-        content_ids = [a["content_id"] for a in assignments]
+        for a in assignments:
+            content_ids.add(a["content_id"])
+
+        # Get public content IDs
+        public_contents = await db.training_contents.find({"is_public": True}, {"id": 1}).to_list(1000)
+        for pc in public_contents:
+            content_ids.add(pc["id"])
+
         contents = await db.training_contents.find(
-            {"id": {"$in": content_ids}},
+            {"id": {"$in": list(content_ids)}},
             {"_id": 0}
         ).to_list(1000)
     else:
@@ -457,6 +664,7 @@ async def create_training_content(request: TrainingContentCreate, current_user: 
     content = TrainingContent(
         title=request.title,
         description=request.description,
+        is_public=request.is_public,
         files=files,
         category_ids=request.category_ids,
         quizzes=quizzes,
@@ -559,6 +767,35 @@ async def assign_content(request: AssignContentRequest, current_user: User = Dep
     await db.content_assignments.insert_one(assignment_dict)
     
     return assignment
+
+@api_router.get("/assignments", response_model=List[ContentAssignment])
+async def get_all_assignments(current_user: User = Depends(get_current_user)):
+    if current_user.user_type != UserType.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para ver todas las asignaciones"
+        )
+    assignments = await db.content_assignments.find({}, {"_id": 0}).to_list(1000)
+    return [ContentAssignment(**a) for a in assignments]
+
+@api_router.post("/assignments/unassign")
+async def unassign_content(request: UnassignContentRequest, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para quitar asignaciones de contenido"
+        )
+
+    # Find all assignments for this content and pull the user_id
+    await db.content_assignments.update_many(
+        {"content_id": request.content_id},
+        {"$pull": {"assigned_to_user_ids": request.user_id}}
+    )
+
+    # Also delete any progress the user had for that content
+    await db.user_progress.delete_many({"user_id": request.user_id, "content_id": request.content_id})
+
+    return {"message": "Formación retirada exitosamente"}
 
 @api_router.get("/representatives")
 async def get_representatives(current_user: User = Depends(get_current_user)):

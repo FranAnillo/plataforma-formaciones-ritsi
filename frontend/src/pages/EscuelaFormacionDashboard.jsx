@@ -14,17 +14,10 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
+import { roleNames } from '../utils/roles';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-
-const roleNames = {
-  admin: 'Administrador',
-  escuela_formacion: 'Escuela de Formación',
-  junta_directiva: 'Junta Directiva',
-  universidad: 'Universidad',
-  representante: 'Representante',
-};
 
 export default function EscuelaFormacionDashboard({ user, onLogout, showHeader = true }) {
   console.log(user.user_type);
@@ -43,6 +36,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
   // Create content form states
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [files, setFiles] = useState([]);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -237,6 +231,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
       await axios.post(`${API}/content`, {
         title,
         description,
+        is_public: isPublic,
         category_ids: selectedCategories,
         files,
         quizzes
@@ -248,6 +243,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
       // Reset form
       setTitle('');
       setDescription('');
+      setIsPublic(false);
       setSelectedCategories([]);
       setFiles([]);
       setQuizzes([]);
@@ -417,6 +413,14 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                         placeholder="Descripción del contenido"
                         rows={3}
                       />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="is-public"
+                        checked={isPublic}
+                        onCheckedChange={setIsPublic}
+                      />
+                      <Label htmlFor="is-public" className="cursor-pointer">Marcar como contenido público (visible para todos)</Label>
                     </div>
                     <div>
                       <Label>Categorías</Label>
@@ -717,7 +721,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                     <Label className="text-base font-semibold mb-3 block">Selecciona Contenido</Label>
                     <div className="space-y-2 max-h-48 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
                       {filteredContentsForAssignment.map((content) => (
-                        <div key={content.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
+                        <div key={content.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
                           <input
                             type="radio"
                             id={`content-${content.id}`}
@@ -750,7 +754,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                       <Label className="text-base font-semibold mb-3 block">Selecciona Representantes</Label>
                       <div className="space-y-2 max-h-64 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
                         {representatives.map((rep) => (
-                          <div key={rep.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
+                          <div key={rep.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
                             <Checkbox
                               id={`rep-${rep.id}`}
                               checked={selectedUsers.includes(rep.id)}
@@ -806,6 +810,11 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
  <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{content.description}</p>
  )}
  </div>
+ {content.is_public && (
+  <div className="mb-2">
+    <span className="text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200 px-2 py-1 rounded-full">Público</span>
+  </div>
+ )}
  {getCategoryNames(content.category_ids).length > 0 && (
  <div className="flex flex-wrap gap-2 mb-3">
  {getCategoryNames(content.category_ids).map(name => (
