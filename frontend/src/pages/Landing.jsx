@@ -3,8 +3,8 @@ import { Button } from '../components/ui/button';
 import logo from '../static/1710_Isotipo_Degradado.png';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
 
-const REDIRECT_URL = window.location.origin + '/dashboard';
-const AUTH_URL = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(REDIRECT_URL)}`;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const AUTH_URL = `${BACKEND_URL}/api/auth/google/login`;
 
 export default function Landing() {
   return (

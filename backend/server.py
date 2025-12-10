@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, Cookie
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -20,6 +20,11 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# Google OAuth settings
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
+GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI')
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -194,6 +199,77 @@ async def get_current_user(session_token: Optional[str] = Cookie(None)) -> User:
         )
     
     return User(**user)
+
+@api_router.get("/auth/google/login")
+async def google_login():
+    if not all([GOOGLE_CLIENT_ID, GOOGLE_REDIRECT_URI]):
+        raise HTTPException(status_code=500, detail="Google OAuth no está configurado en el servidor.")
+    
+    auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={GOOGLE_CLIENT_ID}&"
+        f"redirect_uri={GOOGLE_REDIRECT_URI}&"
+        "response_type=code&"
+        "scope=openid%20email%20profile"
+    )
+    return RedirectResponse(url=auth_url)
+
+@api_router.get("/auth/google/callback")
+async def google_callback(code: str):
+    if not all([GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI]):
+        raise HTTPException(status_code=500, detail="Google OAuth no está configurado en el servidor.")
+
+    # 1. Exchange authorization code for access token
+    token_url = "https://oauth2.googleapis.com/token"
+    token_data = {
+        "code": code,
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }
+    token_r = requests.post(token_url, data=token_data)
+    if token_r.status_code != 200:
+        raise HTTPException(status_code=400, detail="No se pudo obtener el token de Google.")
+    
+    access_token = token_r.json().get("access_token")
+
+    # 2. Get user info from Google
+    userinfo_url = "https://www.googleapis.com/oauth2/v2/userinfo"
+    userinfo_r = requests.get(userinfo_url, headers={"Authorization": f"Bearer {access_token}"})
+    if userinfo_r.status_code != 200:
+        raise HTTPException(status_code=400, detail="No se pudo obtener la información del usuario.")
+    
+    user_data = userinfo_r.json()
+    user_email = user_data.get("email")
+
+    # 3. Find or create user in DB
+    user = await db.users.find_one({"email": user_email})
+    if not user:
+        new_user = User(
+            email=user_email,
+            name=user_data.get("name", ""),
+            picture=user_data.get("picture"),
+            user_type=UserType.REPRESENTANTE, # Default role
+        )
+        user_dict = new_user.model_dump()
+        user_dict["created_at"] = user_dict["created_at"].isoformat()
+        await db.users.insert_one(user_dict)
+        user = user_dict
+
+    # 4. Create session
+    session_token = str(uuid.uuid4())
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    session = UserSession(user_id=user["id"], session_token=session_token, expires_at=expires_at)
+    session_dict = session.model_dump()
+    session_dict["expires_at"] = session_dict["expires_at"].isoformat()
+    session_dict["created_at"] = session_dict["created_at"].isoformat()
+    await db.user_sessions.insert_one(session_dict)
+
+    # 5. Redirect to frontend with session cookie
+    response = RedirectResponse(url="/dashboard")
+    response.set_cookie(key="session_token", value=session_token, httponly=True, max_age=7*24*60*60, samesite="lax")
+    return response
 
 # Auth endpoints
 @api_router.get("/auth/session")
