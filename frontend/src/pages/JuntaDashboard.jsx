@@ -4,14 +4,12 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
-import axios from 'axios';
 import { toast } from 'sonner';
 import logo from '../static/1710_Isotipo_Degradado.png';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
 import { roleNames } from '../utils/roles';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import { api, fetchAllData } from '../services/api';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function JuntaDashboard({ user, onLogout }) {
   const [representatives, setRepresentatives] = useState([]);
@@ -26,9 +24,9 @@ export default function JuntaDashboard({ user, onLogout }) {
 
   const fetchData = async () => {
     try {
-      const [repsRes, contentsRes] = await Promise.all([
-        axios.get(`${API}/representatives`),
-        axios.get(`${API}/content`)
+      const [repsRes, contentsRes] = await fetchAllData([
+        '/representatives',
+        '/content'
       ]);
       setRepresentatives(repsRes.data);
       setContents(contentsRes.data);
@@ -46,7 +44,7 @@ export default function JuntaDashboard({ user, onLogout }) {
     }
 
     try {
-      await axios.post(`${API}/assignments`, {
+      await api.post('/assignments', {
         content_id: selectedContent,
         assign_to_all_representatives: true
       });
@@ -60,14 +58,7 @@ export default function JuntaDashboard({ user, onLogout }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
-        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
