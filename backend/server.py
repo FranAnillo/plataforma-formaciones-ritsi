@@ -30,6 +30,7 @@ class UserType(str, Enum):
     UNIVERSIDAD = "universidad"
     JUNTA_DIRECTIVA = "junta_directiva"
     ESCUELA_FORMACION = "escuela_formacion"
+    COORDINADOR_TEMATICO = "coordinador_tematico"
     FORMADOR = "formador"
     COLABORACION_EXTERNA = "colaboracion_externa"
     ADMIN = "admin"
@@ -86,6 +87,7 @@ class ThematicCommission(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
+    coordinator_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ContentFile(BaseModel):
@@ -209,6 +211,7 @@ class UpdateUserStatusRequest(BaseModel):
 
 class ThematicCommissionCreate(BaseModel):
     name: str
+    coordinator_id: Optional[str] = None
 
 class AssignUsersToCommissionRequest(BaseModel):
     user_ids: List[str]
@@ -558,14 +561,21 @@ async def get_thematic_commissions(current_user: User = Depends(get_current_user
 
 @api_router.post("/thematic-commissions", response_model=ThematicCommission)
 async def create_thematic_commission(request: ThematicCommissionCreate, current_user: User = Depends(get_current_user)):
-    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+    if current_user.user_type != UserType.ADMIN:
         raise HTTPException(status_code=403, detail="No tienes permisos para crear comisiones temáticas")
 
     existing_commission = await db.thematic_commissions.find_one({"name": {"$regex": f"^{request.name}$", "$options": "i"}})
     if existing_commission:
         raise HTTPException(status_code=400, detail=f"La comisión temática '{request.name}' ya existe")
 
-    commission = ThematicCommission(name=request.name)
+    if request.coordinator_id:
+        coordinator = await db.users.find_one({"id": request.coordinator_id})
+        if not coordinator:
+            raise HTTPException(status_code=404, detail="Usuario coordinador no encontrado")
+        if coordinator.get("user_type") != UserType.COORDINADOR_TEMATICO.value:
+            raise HTTPException(status_code=400, detail="El usuario asignado debe tener el rol de Coordinador Temático")
+
+    commission = ThematicCommission(name=request.name, coordinator_id=request.coordinator_id)
     commission_dict = commission.model_dump()
     commission_dict["created_at"] = commission_dict["created_at"].isoformat()
     await db.thematic_commissions.insert_one(commission_dict)
@@ -573,12 +583,21 @@ async def create_thematic_commission(request: ThematicCommissionCreate, current_
 
 @api_router.put("/thematic-commissions/{commission_id}", response_model=ThematicCommission)
 async def update_thematic_commission(commission_id: str, request: ThematicCommissionCreate, current_user: User = Depends(get_current_user)):
-    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+    if current_user.user_type != UserType.ADMIN:
         raise HTTPException(status_code=403, detail="No tienes permisos para editar comisiones")
+
+    if request.coordinator_id:
+        coordinator = await db.users.find_one({"id": request.coordinator_id})
+        if not coordinator:
+            raise HTTPException(status_code=404, detail="Usuario coordinador no encontrado")
+        if coordinator.get("user_type") != UserType.COORDINADOR_TEMATICO.value:
+            raise HTTPException(status_code=400, detail="El usuario asignado debe tener el rol de Coordinador Temático")
+
+    update_data = request.model_dump(exclude_unset=True)
 
     update_result = await db.thematic_commissions.update_one(
         {"id": commission_id},
-        {"$set": {"name": request.name}}
+        {"$set": update_data}
     )
     if update_result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Comisión no encontrada")
@@ -588,7 +607,7 @@ async def update_thematic_commission(commission_id: str, request: ThematicCommis
 
 @api_router.delete("/thematic-commissions/{commission_id}")
 async def delete_thematic_commission(commission_id: str, current_user: User = Depends(get_current_user)):
-    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+    if current_user.user_type != UserType.ADMIN:
         raise HTTPException(status_code=403, detail="No tienes permisos para eliminar comisiones")
 
     await db.users.update_many({}, {"$pull": {"thematic_commission_ids": commission_id}})
@@ -601,9 +620,32 @@ async def delete_thematic_commission(commission_id: str, current_user: User = De
 
 @api_router.put("/thematic-commissions/{commission_id}/assign-users")
 async def assign_users_to_commission(commission_id: str, request: AssignUsersToCommissionRequest, current_user: User = Depends(get_current_user)):
-    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
-        raise HTTPException(status_code=403, detail="No tienes permisos para asignar usuarios a comisiones")
+    commission = await db.thematic_commissions.find_one({"id": commission_id})
+    if not commission:
+        raise HTTPException(status_code=404, detail="Comisión no encontrada")
 
+    # Permission check
+    is_admin = current_user.user_type == UserType.ADMIN
+    is_coordinator_of_this_commission = (
+        current_user.user_type == UserType.COORDINADOR_TEMATICO and
+        current_user.id == commission.get("coordinator_id")
+    )
+
+    if not (is_admin or is_coordinator_of_this_commission):
+        raise HTTPException(status_code=403, detail="No tienes permisos para gestionar los miembros de esta comisión")
+
+    # --- Audit Log Logic ---
+    # Get current members to compare
+    current_members_cursor = db.users.find({"thematic_commission_ids": commission_id}, {"id": 1, "name": 1})
+    current_members_list = await current_members_cursor.to_list(length=None)
+    current_member_ids = {member['id'] for member in current_members_list}
+    
+    new_member_ids = set(request.user_ids)
+    
+    added_ids = new_member_ids - current_member_ids
+    removed_ids = current_member_ids - new_member_ids
+
+    # --- Database Operations ---
     await db.users.update_many(
         {"thematic_commission_ids": commission_id},
         {"$pull": {"thematic_commission_ids": commission_id}}
@@ -611,8 +653,22 @@ async def assign_users_to_commission(commission_id: str, request: AssignUsersToC
     if request.user_ids:
         await db.users.update_many(
             {"id": {"$in": request.user_ids}},
-            {"$addToSet": {"thematic_commission_ids": commission_id}}
+            {"$addToSet": {"thematic_commission_ids": commission_id}} # Use $addToSet to avoid duplicates
         )
+
+    # --- Log the activity ---
+    if added_ids or removed_ids:
+        all_involved_users = await db.users.find({"id": {"$in": list(added_ids | removed_ids)}}, {"id": 1, "name": 1}).to_list(length=None)
+        user_map = {user['id']: user['name'] for user in all_involved_users}
+
+        details = {
+            "commission_name": commission["name"],
+            "added": [user_map.get(uid, "Usuario desconocido") for uid in added_ids],
+            "removed": [user_map.get(uid, "Usuario desconocido") for uid in removed_ids]
+        }
+        # We log against the actor, as there's no single target user
+        await log_activity(actor=current_user, action="Gestión de comisión", target_user=current_user.model_dump(), details=details)
+
     return {"message": "Asignación de representantes a la comisión actualizada exitosamente"}
 
 # Categories endpoints
@@ -688,7 +744,7 @@ async def delete_category(category_id: str, current_user: User = Depends(get_cur
 # Training Content endpoints
 @api_router.get("/content", response_model=List[TrainingContent])
 async def get_training_content(current_user: User = Depends(get_current_user)):
-    if current_user.user_type in [UserType.REPRESENTANTE, UserType.COLABORACION_EXTERNA, UserType.UNIVERSIDAD, UserType.JUNTA_DIRECTIVA]:
+    if current_user.user_type in [UserType.REPRESENTANTE, UserType.COLABORACION_EXTERNA, UserType.UNIVERSIDAD, UserType.JUNTA_DIRECTIVA, UserType.COORDINADOR_TEMATICO]:
         # Get assigned and public content
         content_ids = set()
 
@@ -861,10 +917,10 @@ async def assign_content(request: AssignContentRequest, current_user: User = Dep
         
         assignment = ContentAssignment(
             content_id=request.content_id,
-            assigned_to_user_ids=request.user_ids,
+            assigned_to_user_ids=request.user_ids or [],
             assigned_by=current_user.id
         )
-    elif current_user.user_type in [UserType.ESCUELA_FORMACION, UserType.ADMIN]:
+    elif current_user.user_type in [UserType.ESCUELA_FORMACION, UserType.ADMIN, UserType.COORDINADOR_TEMATICO]:
         # Can assign to anyone
         assignment = ContentAssignment(
             content_id=request.content_id,
