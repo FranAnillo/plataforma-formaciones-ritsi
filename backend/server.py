@@ -74,6 +74,7 @@ class University(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
+    is_active: bool = True
     zone: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -161,6 +162,9 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     name: str
     university_id: str
+
+class UpdateUniversityStatusRequest(BaseModel):
+    is_active: bool
 
 class UniversityCreate(BaseModel):
     name: str
@@ -571,6 +575,15 @@ async def update_university(university_id: str, request: UniversityCreate, curre
     if update_result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Universidad no encontrada")
 
+    updated_university = await db.universities.find_one({"id": university_id}, {"_id": 0})
+    return University(**updated_university)
+
+@api_router.put("/universities/{university_id}/status", response_model=University)
+async def update_university_status(university_id: str, request: UpdateUniversityStatusRequest, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != UserType.ADMIN:
+        raise HTTPException(status_code=403, detail="No tienes permisos para cambiar el estado de una universidad")
+
+    await db.universities.update_one({"id": university_id}, {"$set": {"is_active": request.is_active}})
     updated_university = await db.universities.find_one({"id": university_id}, {"_id": 0})
     return University(**updated_university)
 
