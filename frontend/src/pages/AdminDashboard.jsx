@@ -36,13 +36,16 @@ export default function AdminDashboard({ user, onLogout }) {
   const [universities, setUniversities] = useState([]);
   const [contents, setContents] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [activityLog, setActivityLog] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [viewUserContent, setViewUserContent] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 10;
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('stats');
 
   useEffect(() => {
     fetchData();
@@ -51,17 +54,18 @@ export default function AdminDashboard({ user, onLogout }) {
   useEffect(() => {
     // Reset to the first page whenever filters change
     setCurrentPage(1);
-  }, [searchQuery, filterRole]);
+  }, [searchQuery, filterRole, filterStatus]);
 
   const fetchData = async () => {
     try {
       // Need to fetch all users, not just representatives
-      const [usersRes, unisRes, contentsRes, assignmentsRes, commissionsRes] = await Promise.all([
+      const [usersRes, unisRes, contentsRes, assignmentsRes, commissionsRes, logRes] = await Promise.all([
         axios.get(`${API}/users`), // Assuming an endpoint to get all users exists
         axios.get(`${API}/universities`),
         axios.get(`${API}/content`),
         axios.get(`${API}/assignments`), // Assuming an endpoint to get all assignments
-        axios.get(`${API}/thematic-commissions`)
+        axios.get(`${API}/thematic-commissions`),
+        axios.get(`${API}/activity-log`)
       ]);
       
       const allUsers = usersRes.data || [];
@@ -69,6 +73,7 @@ export default function AdminDashboard({ user, onLogout }) {
       setUsers(allUsers);
       setUniversities(unisRes.data || []);
       setContents(allContents);
+      setActivityLog(logRes.data || []);
       setAssignments(assignmentsRes.data || []);
 
       setStats({
@@ -194,14 +199,28 @@ export default function AdminDashboard({ user, onLogout }) {
   };
 
   const getUniversityName = (uniId) => universities.find(u => u.id === uniId)?.name || 'N/A';
-  
-  const filteredUsers = users.filter(u => (filterRole === 'all' || u.user_type === filterRole) &&
+
+  const handleStatCardClick = (tab, role, status) => {
+    setActiveTab(tab);
+    setFilterRole(role);
+    setFilterStatus(status);
+  };
+
+  const filteredUsers = users.filter(u => 
+    (filterRole === 'all' || u.user_type === filterRole) &&
+    (filterStatus === 'all' || u.is_active === (filterStatus === 'active')) &&
     (u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase())));
 
   const indexOfLastUser = currentPage * usersPerPage;
   const indexOfFirstUser = indexOfLastUser - usersPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+  const formatTimestamp = (timestamp) => {
+    return new Date(timestamp).toLocaleString('es-ES', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  };
 
   if (loading) {
     return (
@@ -253,16 +272,17 @@ export default function AdminDashboard({ user, onLogout }) {
           <p className="text-gray-600 dark:text-gray-400">Gestión completa de la plataforma</p>
         </div>
 
-        <Tabs defaultValue="stats" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList>
             <TabsTrigger value="stats">Estadísticas</TabsTrigger>
             <TabsTrigger value="users">Gestión de Usuarios</TabsTrigger>
             <TabsTrigger value="content">Gestión de Contenidos</TabsTrigger>
+            <TabsTrigger value="activity">Registro de Actividad</TabsTrigger>
           </TabsList>
 
           <TabsContent value="stats" className="mt-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'all', 'all')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <Users className="w-8 h-8 opacity-80" />
@@ -271,7 +291,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Usuarios Totales</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <Building2 className="w-8 h-8 opacity-80" />
@@ -280,7 +300,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Universidades</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => setActiveTab('content')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <FileText className="w-8 h-8 opacity-80" />
@@ -289,7 +309,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Contenidos</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'representante', 'all')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <GraduationCap className="w-8 h-8 opacity-80" />
@@ -298,7 +318,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Representantes</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'formador', 'all')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <Shield className="w-8 h-8 opacity-80" />
@@ -307,7 +327,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Formadores</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => setActiveTab('content')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <Clock className="w-8 h-8 opacity-80" />
@@ -316,7 +336,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Contenidos Pendientes</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => setActiveTab('content')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <Globe className="w-8 h-8 opacity-80" />
@@ -325,7 +345,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Contenidos Públicos</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <Users className="w-8 h-8 opacity-80" />
@@ -334,7 +354,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Comisiones Temáticas</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'all', 'inactive')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <UserX className="w-8 h-8 opacity-80" />
@@ -343,7 +363,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Usuarios Inactivos</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <ClipboardList className="w-8 h-8 opacity-80" />
@@ -378,6 +398,16 @@ export default function AdminDashboard({ user, onLogout }) {
                       {Object.entries(roleNames).map(([key, name]) => (
                         <SelectItem key={key} value={key}>{name}</SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los estados</SelectItem>
+                      <SelectItem value="active">Activo</SelectItem>
+                      <SelectItem value="inactive">Inactivo</SelectItem>
                     </SelectContent>
                   </Select>
                   <div className="ml-auto flex items-center gap-2">
@@ -472,6 +502,43 @@ export default function AdminDashboard({ user, onLogout }) {
 
           <TabsContent value="content" className="mt-6">
             <EscuelaFormacionDashboard user={user} onLogout={onLogout} showHeader={false} />
+          </TabsContent>
+          <TabsContent value="activity" className="mt-6">
+            <Card className="bg-white dark:bg-gray-800/50">
+              <CardHeader>
+                <CardTitle>Registro de Actividad</CardTitle>
+                <CardDescription>Auditoría de cambios importantes en la plataforma.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead>Administrador</TableHead>
+                        <TableHead>Acción</TableHead>
+                        <TableHead>Usuario Afectado</TableHead>
+                        <TableHead>Detalles</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {activityLog.map(log => (
+                        <TableRow key={log.id}>
+                          <TableCell>{formatTimestamp(log.timestamp)}</TableCell>
+                          <TableCell>{log.actor_name}</TableCell>
+                          <TableCell>{log.action}</TableCell>
+                          <TableCell>{log.target_user_name}</TableCell>
+                          <TableCell>
+                            {log.details?.from && `De '${roleNames[log.details.from]}' a '${roleNames[log.details.to]}'`}
+                            {log.details?.status && `Usuario ${log.details.status}`}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 
