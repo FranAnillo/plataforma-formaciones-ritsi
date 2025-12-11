@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, LogOut, User, Users, Plus } from 'lucide-react';
+import { BookOpen, LogOut, User, Users, Plus, Edit } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -17,10 +17,13 @@ const API = `${BACKEND_URL}/api`;
 export default function UniversityDashboard({ user, onLogout }) {
   const [representatives, setRepresentatives] = useState([]);
   const [contents, setContents] = useState([]);
+  const [thematicCommissions, setThematicCommissions] = useState([]);
   const [selectedContent, setSelectedContent] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editCommissionsUser, setEditCommissionsUser] = useState(null);
+  const [selectedCommissions, setSelectedCommissions] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -28,12 +31,14 @@ export default function UniversityDashboard({ user, onLogout }) {
 
   const fetchData = async () => {
     try {
-      const [repsRes, contentsRes] = await Promise.all([
+      const [repsRes, contentsRes, commissionsRes] = await Promise.all([
         axios.get(`${API}/representatives`),
-        axios.get(`${API}/content`)
+        axios.get(`${API}/content`),
+        axios.get(`${API}/thematic-commissions`)
       ]);
       setRepresentatives(repsRes.data);
       setContents(contentsRes.data);
+      setThematicCommissions(commissionsRes.data || []);
     } catch (error) {
       toast.error('Error al cargar datos');
     } finally {
@@ -59,6 +64,28 @@ export default function UniversityDashboard({ user, onLogout }) {
       setSelectedUsers([]);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al asignar contenido');
+    }
+  };
+
+  const handleOpenEditCommissions = (rep) => {
+    setEditCommissionsUser(rep);
+    setSelectedCommissions(rep.thematic_commission_ids || []);
+  };
+
+  const handleUpdateCommissions = async () => {
+    if (!editCommissionsUser) return;
+
+    try {
+      await axios.put(`${API}/users/${editCommissionsUser.id}/commissions`, {
+        commission_ids: selectedCommissions
+      });
+      toast.success(`Comisiones de ${editCommissionsUser.name} actualizadas`);
+      setEditCommissionsUser(null);
+      setSelectedCommissions([]);
+      // Refresh data to show changes
+      fetchData();
+    } catch (error) {
+      toast.error('Error al actualizar las comisiones');
     }
   };
 
@@ -208,10 +235,27 @@ export default function UniversityDashboard({ user, onLogout }) {
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold truncate">{rep.name}</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{rep.email}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{rep.email}</p>
+                            {rep.thematic_commission_ids?.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {rep.thematic_commission_ids.map(id => {
+                                  const commission = thematicCommissions.find(c => c.id === id);
+                                  return commission ? <span key={id} className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200 px-2 py-0.5 rounded-full">{commission.name}</span> : null;
+                                })}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </CardContent>
+                      <CardFooter>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={(e) => { e.stopPropagation(); handleOpenEditCommissions(rep); }}>
+                          <Edit className="w-4 h-4 mr-2" /> Editar Comisiones
+                        </Button>
+                      </CardFooter>
                     </Card>
                   ))}
                 </div>
@@ -249,6 +293,35 @@ export default function UniversityDashboard({ user, onLogout }) {
             </CardContent>
           </Card>
         </div>
+
+        {/* Edit Commissions Dialog */}
+        <Dialog open={!!editCommissionsUser} onOpenChange={() => setEditCommissionsUser(null)}>
+          <DialogContent className="bg-white dark:bg-gray-900">
+            <DialogHeader>
+              <DialogTitle>Editar Comisiones de {editCommissionsUser?.name}</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 space-y-3 max-h-80 overflow-y-auto">
+              {thematicCommissions.map(commission => (
+                <div key={commission.id} className="flex items-center space-x-3 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <Checkbox
+                    id={`commission-${commission.id}`}
+                    checked={selectedCommissions.includes(commission.id)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedCommissions([...selectedCommissions, commission.id]);
+                      } else {
+                        setSelectedCommissions(selectedCommissions.filter(id => id !== commission.id));
+                      }
+                    }}
+                  />
+                  <Label htmlFor={`commission-${commission.id}`} className="cursor-pointer flex-1">{commission.name}</Label>
+                </div>
+              ))}
+            </div>
+            <Button onClick={handleUpdateCommissions} className="w-full bg-[#da2724] hover:bg-[#b8211e]">Guardar Cambios</Button>
+          </DialogContent>
+        </Dialog>
+
       </main>
     </div>
   );

@@ -30,6 +30,7 @@ class UserType(str, Enum):
     UNIVERSIDAD = "universidad"
     JUNTA_DIRECTIVA = "junta_directiva"
     ESCUELA_FORMACION = "escuela_formacion"
+    FORMADOR = "formador"
     COLABORACION_EXTERNA = "colaboracion_externa"
     ADMIN = "admin"
 
@@ -42,6 +43,10 @@ class FileType(str, Enum):
     VIDEO = "video"
     PDF = "pdf"
     IMAGE = "image"
+
+class ContentStatus(str, Enum):
+    PENDING = "pending"
+    PUBLISHED = "published"
 
 # Pydantic Models
 class User(BaseModel):
@@ -104,6 +109,7 @@ class TrainingContent(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
     description: Optional[str] = None
+    status: ContentStatus = ContentStatus.PENDING
     is_public: bool = False
     files: List[ContentFile] = []
     category_ids: List[str] = []
@@ -605,7 +611,7 @@ async def delete_category(category_id: str, current_user: User = Depends(get_cur
 # Training Content endpoints
 @api_router.get("/content", response_model=List[TrainingContent])
 async def get_training_content(current_user: User = Depends(get_current_user)):
-    if current_user.user_type in [UserType.REPRESENTANTE, UserType.COLABORACION_EXTERNA]:
+    if current_user.user_type in [UserType.REPRESENTANTE, UserType.COLABORACION_EXTERNA, UserType.UNIVERSIDAD, UserType.JUNTA_DIRECTIVA]:
         # Get assigned and public content
         content_ids = set()
 
@@ -619,13 +625,19 @@ async def get_training_content(current_user: User = Depends(get_current_user)):
         for a in assignments:
             content_ids.add(a["content_id"])
 
-        # Get public content IDs
-        public_contents = await db.training_contents.find({"is_public": True}, {"id": 1}).to_list(1000)
+        # Get public content IDs that are published
+        public_contents = await db.training_contents.find({"is_public": True, "status": ContentStatus.PUBLISHED}, {"id": 1}).to_list(1000)
         for pc in public_contents:
             content_ids.add(pc["id"])
 
         contents = await db.training_contents.find(
-            {"id": {"$in": list(content_ids)}},
+            {"id": {"$in": list(content_ids)}, "status": ContentStatus.PUBLISHED},
+            {"_id": 0}
+        ).to_list(1000)
+    elif current_user.user_type == UserType.FORMADOR:
+        # Formadores see their own content + all published content
+        contents = await db.training_contents.find(
+            {"$or": [{"created_by": current_user.id}, {"status": ContentStatus.PUBLISHED}]},
             {"_id": 0}
         ).to_list(1000)
     else:
@@ -636,7 +648,7 @@ async def get_training_content(current_user: User = Depends(get_current_user)):
 
 @api_router.post("/content", response_model=TrainingContent)
 async def create_training_content(request: TrainingContentCreate, current_user: User = Depends(get_current_user)):
-    if current_user.user_type not in [UserType.ESCUELA_FORMACION, UserType.ADMIN]:
+    if current_user.user_type not in [UserType.ESCUELA_FORMACION, UserType.ADMIN, UserType.FORMADOR]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tienes permisos para crear contenido formativo"
@@ -660,10 +672,16 @@ async def create_training_content(request: TrainingContentCreate, current_user: 
         )
         for q in request.quizzes
     ]
+
+    # Determine status based on user role
+    content_status = ContentStatus.PENDING
+    if current_user.user_type in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        content_status = ContentStatus.PUBLISHED
     
     content = TrainingContent(
         title=request.title,
         description=request.description,
+        status=content_status,
         is_public=request.is_public,
         files=files,
         category_ids=request.category_ids,
@@ -702,6 +720,27 @@ async def delete_training_content(content_id: str, current_user: User = Depends(
         raise HTTPException(status_code=404, detail="Content not found")
 
     return {"message": "Content deleted successfully"}
+
+@api_router.post("/content/{content_id}/approve", response_model=TrainingContent)
+async def approve_content(content_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ESCUELA_FORMACION, UserType.ADMIN]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para aprobar contenido")
+
+    await db.training_contents.update_one({"id": content_id}, {"$set": {"status": ContentStatus.PUBLISHED}})
+    updated_content = await db.training_contents.find_one({"id": content_id}, {"_id": 0})
+    if not updated_content:
+        raise HTTPException(status_code=404, detail="Contenido no encontrado")
+    return TrainingContent(**updated_content)
+
+@api_router.post("/content/{content_id}/reject", response_model=TrainingContent)
+async def reject_content(content_id: str, current_user: User = Depends(get_current_user)):
+    # In a real app, you might want to change status to "rejected" or notify the creator.
+    # For now, we'll just delete it for simplicity.
+    if current_user.user_type not in [UserType.ESCUELA_FORMACION, UserType.ADMIN]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para rechazar contenido")
+    
+    await delete_training_content(content_id, current_user)
+    return {"message": "Contenido rechazado y eliminado"}
 
 # Assignments endpoints
 @api_router.post("/assignments")

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
-import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, GripVertical, Eye } from 'lucide-react';
+import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, GripVertical, Eye, Users, Check, X } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -335,6 +335,26 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     }
   };
 
+  const handleApproveContent = async (contentId) => {
+    try {
+      await axios.post(`${API}/content/${contentId}/approve`);
+      toast.success('Contenido aprobado y publicado');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al aprobar el contenido');
+    }
+  };
+
+  const handleRejectContent = async (contentId) => {
+    try {
+      await axios.post(`${API}/content/${contentId}/reject`);
+      toast.success('Contenido rechazado y eliminado');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al rechazar el contenido');
+    }
+  };
+
   const handleDeleteContent = async (contentId) => {
     try {
       await axios.delete(`${API}/content/${contentId}`);
@@ -377,7 +397,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     <>
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{showHeader ? 'Panel de Escuela de Formación' : 'Gestión de Contenidos'}</h2>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{showHeader ? `Panel de ${roleNames[user.user_type]}` : 'Gestión de Contenidos'}</h2>
             <p className="text-gray-600 dark:text-gray-400">Crea y asigna contenidos formativos</p>
           </div>
           <div className="flex gap-3">
@@ -810,6 +830,16 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
  <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{content.description}</p>
  )}
  </div>
+ <div className="flex flex-col items-end gap-2">
+  <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+    content.status === 'published' 
+      ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' 
+      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200'
+  }`}>
+    {content.status === 'published' ? 'Publicado' : 'Pendiente'}
+  </span>
+ </div>
+ </div>
  {content.is_public && (
   <div className="mb-2">
     <span className="text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200 px-2 py-1 rounded-full">Público</span>
@@ -822,7 +852,18 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
  ))}
  </div>
  )}
-  <div className="flex items-center">
+  <div className="flex items-center justify-between mt-4">
+    <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+      <span className="flex items-center gap-1"><FileText className="w-4 h-4" />{content.files.length} archivos</span>
+      <span className="flex items-center gap-1"><HelpCircle className="w-4 h-4" />{content.quizzes.length} cuestionarios</span>
+    </div>
+    <div className="flex items-center">
+    {user.user_type !== 'formador' && content.status === 'pending' && (
+      <>
+        <Button onClick={() => handleApproveContent(content.id)} variant="ghost" size="sm" className="text-green-600 hover:text-green-700"><Check className="w-4 h-4 mr-2" /> Aprobar</Button>
+        <Button onClick={() => handleRejectContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700"><X className="w-4 h-4 mr-2" /> Rechazar</Button>
+      </>
+    )}
     <Button onClick={() => navigate(`/content/${content.id}?preview=true`)} variant="ghost" size="sm">
       <Eye className="w-4 h-4 mr-2" />
       Vista Previa
@@ -832,16 +873,6 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
       Eliminar
     </Button>
   </div>
- </div>
- <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="flex items-center gap-1">
-                          <FileText className="w-4 h-4" />
-                          {content.files.length} archivos
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <HelpCircle className="w-4 h-4" />
-                          {content.quizzes.length} cuestionarios
-                        </span>
  </div>
  </CardContent>
  </Card>
