@@ -58,6 +58,9 @@ export default function AdminDashboard({ user, onLogout }) {
   const [universityDialogOpen, setUniversityDialogOpen] = useState(false);
   const [editingUniversity, setEditingUniversity] = useState(null);
   const [universityName, setUniversityName] = useState('');
+  const [universitySort, setUniversitySort] = useState({ key: 'zone', direction: 'asc' });
+  const [universityCurrentPage, setUniversityCurrentPage] = useState(1);
+  const universitiesPerPage = 10;
   const [universityZone, setUniversityZone] = useState('');
   const [commissionSort, setCommissionSort] = useState({ key: 'name', direction: 'asc' });
   const [commissionCurrentPage, setCommissionCurrentPage] = useState(1);
@@ -79,7 +82,11 @@ export default function AdminDashboard({ user, onLogout }) {
 
   useEffect(() => {
     setCommissionCurrentPage(1);
-  }, [commissionSearchQuery]);
+  }, [commissionSearchQuery, commissionSort]);
+
+  useEffect(() => {
+    setUniversityCurrentPage(1);
+  }, [universitySearchQuery, universitySort]);
 
   useEffect(() => {
     if (activeTab !== 'content') {
@@ -315,6 +322,15 @@ export default function AdminDashboard({ user, onLogout }) {
     });
   };
 
+  const handleUniversitySort = (key) => {
+    setUniversitySort(prevSort => {
+      if (prevSort.key === key) {
+        return { key, direction: prevSort.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
   const handleOpenUniversityDialog = (university = null) => {
     setEditingUniversity(university);
     setUniversityName(university ? university.name : '');
@@ -343,6 +359,16 @@ export default function AdminDashboard({ user, onLogout }) {
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al guardar la universidad.');
+    }
+  };
+
+  const handleUniversityStatusChange = async (universityId, isActive) => {
+    try {
+      await api.put(`/universities/${universityId}/status`, { is_active: isActive });
+      toast.success(`Universidad ${isActive ? 'activada' : 'desactivada'}`);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al cambiar el estado.');
     }
   };
 
@@ -390,9 +416,29 @@ export default function AdminDashboard({ user, onLogout }) {
   const currentCommissions = filteredCommissions.slice(indexOfFirstCommission, indexOfLastCommission);
   const totalCommissionPages = Math.ceil(filteredCommissions.length / commissionsPerPage);
 
-  const filteredUniversities = universities.filter(u =>
-    u.name.toLowerCase().includes(universitySearchQuery.toLowerCase())
-  );
+  const sortedUniversities = universities
+    .filter(u => u.name.toLowerCase().includes(universitySearchQuery.toLowerCase()))
+    .sort((a, b) => {
+      const key = universitySort.key;
+      const direction = universitySort.direction === 'asc' ? 1 : -1;
+      const zoneOrder = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5 };
+
+      let valA = key === 'name' ? a.name.toLowerCase() : (a.zone ? zoneOrder[a.zone] : 99);
+      let valB = key === 'name' ? b.name.toLowerCase() : (b.zone ? zoneOrder[b.zone] : 99);
+
+      if (valA < valB) return -1 * direction;
+      if (valA > valB) return 1 * direction;
+      
+      // Secondary sort by name if zones are equal
+      if (key === 'zone') {
+        return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+      }
+      return 0;
+    });
+  const indexOfLastUniversity = universityCurrentPage * universitiesPerPage;
+  const indexOfFirstUniversity = indexOfLastUniversity - universitiesPerPage;
+  const currentUniversities = sortedUniversities.slice(indexOfFirstUniversity, indexOfLastUniversity);
+  const totalUniversityPages = Math.ceil(sortedUniversities.length / universitiesPerPage);
 
   const coordinatorCandidates = users.filter(u => u.user_type === 'coordinador_tematico' && u.is_active);
   const getUserName = (userId) => users.find(u => u.id === userId)?.name || 'Sin asignar';
@@ -436,7 +482,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Usuarios Totales</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => setActiveTab('universities')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <Building2 className="w-8 h-8 opacity-80" />
@@ -672,17 +718,31 @@ export default function AdminDashboard({ user, onLogout }) {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Universidad</TableHead>
-                        <TableHead>Zona</TableHead>
+                        <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => handleUniversitySort('name')}>
+                          Universidad {universitySort.key === 'name' && (universitySort.direction === 'asc' ? <ArrowUp className="inline w-4 h-4 ml-1" /> : <ArrowDown className="inline w-4 h-4 ml-1" />)}
+                        </TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => handleUniversitySort('zone')}>
+                          Zona {universitySort.key === 'zone' && (universitySort.direction === 'asc' ? <ArrowUp className="inline w-4 h-4 ml-1" /> : <ArrowDown className="inline w-4 h-4 ml-1" />)}
+                        </TableHead>
                         <TableHead>Nº Representantes</TableHead>
                         <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredUniversities.map(uni => (
+                      {currentUniversities.map(uni => (
                         <TableRow key={uni.id}>
                           <TableCell className="font-medium">{uni.name}</TableCell>
-                          <TableCell>{uni.zone || '-'}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={uni.is_active}
+                                onCheckedChange={(isChecked) => handleUniversityStatusChange(uni.id, isChecked)}
+                              />
+                              <span className={`text-xs font-medium ${uni.is_active ? 'text-green-600' : 'text-red-600'}`}>{uni.is_active ? 'Activa' : 'Inactiva'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>{uni.zone ? `Zona ${uni.zone}`: '-'}</TableCell>
                           <TableCell>{users.filter(u => u.university_id === uni.id).length}</TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
@@ -699,6 +759,22 @@ export default function AdminDashboard({ user, onLogout }) {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+                <div className="flex items-center justify-end space-x-2 py-4">
+                  <span className="text-sm text-muted-foreground">
+                    Página {universityCurrentPage} de {totalUniversityPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setUniversityCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={universityCurrentPage === 1}
+                  >
+                    Anterior
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setUniversityCurrentPage(prev => Math.min(prev + 1, totalUniversityPages))} disabled={universityCurrentPage === totalUniversityPages}>
+                    Siguiente
+                  </Button>
                 </div>
               </CardContent>
             </Card>
