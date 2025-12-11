@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Users, Building2, GraduationCap, FileText, Trash2, Eye, MoreVertical, Upload, Download, Clock, Globe, Shield, UserX, ClipboardList, Plus, ArrowUp, ArrowDown } from 'lucide-react';
+import { LogOut, User, Users, Building2, GraduationCap, FileText, Trash2, Eye, MoreVertical, Upload, Download, Clock, Globe, Shield, UserX, ClipboardList, Plus, ArrowUp, ArrowDown, Search } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -7,6 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { Textarea } from '../components/ui/textarea';
 import { Switch } from '../components/ui/switch';
 import { Checkbox } from '../components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -17,6 +18,8 @@ import { roleNames } from '../utils/roles';
 import { api, fetchAllData } from '../services/api';
 import DashboardLayout from '../components/DashboardLayout';
 import LoadingSpinner from '../components/LoadingSpinner';
+
+const ZONES = ['I', 'II', 'III', 'IV', 'V'];
 
 export default function AdminDashboard({ user, onLogout }) {
   const [stats, setStats] = useState({
@@ -50,6 +53,12 @@ export default function AdminDashboard({ user, onLogout }) {
   const [assignMembersDialogOpen, setAssignMembersDialogOpen] = useState(null);
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  // University Management State
+  const [universitySearchQuery, setUniversitySearchQuery] = useState('');
+  const [universityDialogOpen, setUniversityDialogOpen] = useState(false);
+  const [editingUniversity, setEditingUniversity] = useState(null);
+  const [universityName, setUniversityName] = useState('');
+  const [universityZone, setUniversityZone] = useState('');
   const [commissionSort, setCommissionSort] = useState({ key: 'name', direction: 'asc' });
   const [commissionCurrentPage, setCommissionCurrentPage] = useState(1);
   const commissionsPerPage = 5;
@@ -306,6 +315,47 @@ export default function AdminDashboard({ user, onLogout }) {
     });
   };
 
+  const handleOpenUniversityDialog = (university = null) => {
+    setEditingUniversity(university);
+    setUniversityName(university ? university.name : '');
+    setUniversityZone(university ? university.zone || '' : '');
+    setUniversityDialogOpen(true);
+  };
+
+  const handleSaveUniversity = async () => {
+    if (!universityName.trim()) {
+      toast.error('El nombre de la universidad es obligatorio.');
+      return;
+    }
+    const url = editingUniversity
+      ? `/universities/${editingUniversity.id}`
+      : '/universities';
+    const method = editingUniversity ? 'put' : 'post';
+    const data = {
+      name: universityName,
+      zone: universityZone === '__NONE__' ? null : universityZone,
+    };
+
+    try {
+      await api[method](url, data);
+      toast.success(`Universidad ${editingUniversity ? 'actualizada' : 'creada'} exitosamente.`);
+      setUniversityDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al guardar la universidad.');
+    }
+  };
+
+  const handleDeleteUniversity = async (universityId) => {
+    try {
+      await api.delete(`/universities/${universityId}`);
+      toast.success('Universidad eliminada exitosamente.');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al eliminar la universidad.');
+    }
+  };
+
   const filteredUsers = users.filter(u => 
     (filterRole === 'all' || u.user_type === filterRole) &&
     (filterStatus === 'all' || u.is_active === (filterStatus === 'active')) &&
@@ -340,6 +390,10 @@ export default function AdminDashboard({ user, onLogout }) {
   const currentCommissions = filteredCommissions.slice(indexOfFirstCommission, indexOfLastCommission);
   const totalCommissionPages = Math.ceil(filteredCommissions.length / commissionsPerPage);
 
+  const filteredUniversities = universities.filter(u =>
+    u.name.toLowerCase().includes(universitySearchQuery.toLowerCase())
+  );
+
   const coordinatorCandidates = users.filter(u => u.user_type === 'coordinador_tematico' && u.is_active);
   const getUserName = (userId) => users.find(u => u.id === userId)?.name || 'Sin asignar';
 
@@ -366,6 +420,7 @@ export default function AdminDashboard({ user, onLogout }) {
             <TabsTrigger value="stats">Estadísticas</TabsTrigger>
             <TabsTrigger value="users">Gestión de Usuarios</TabsTrigger>
             <TabsTrigger value="content">Gestión de Contenidos</TabsTrigger>
+            <TabsTrigger value="universities">Universidades</TabsTrigger>
             <TabsTrigger value="commissions">Comisiones</TabsTrigger>
             <TabsTrigger value="activity">Registro de Actividad</TabsTrigger>
           </TabsList>
@@ -593,6 +648,61 @@ export default function AdminDashboard({ user, onLogout }) {
           <TabsContent value="content" className="mt-6">
             <EscuelaFormacionDashboard user={user} onLogout={onLogout} showHeader={false} initialFilter={initialContentFilter} />
           </TabsContent>
+          <TabsContent value="universities" className="mt-6">
+            <Card className="bg-white dark:bg-gray-800/50">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Gestión de Universidades</CardTitle>
+                  <Button onClick={() => handleOpenUniversityDialog()}>
+                    <Plus className="w-4 h-4 mr-2" /> Crear Universidad
+                  </Button>
+                </div>
+                <CardDescription>Crea, edita y elimina las universidades de la plataforma.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4">
+                  <Input
+                    placeholder="Buscar universidad por nombre..."
+                    value={universitySearchQuery}
+                    onChange={(e) => setUniversitySearchQuery(e.target.value)}
+                    className="max-w-sm"
+                  />
+                </div>
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Universidad</TableHead>
+                        <TableHead>Zona</TableHead>
+                        <TableHead>Nº Representantes</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUniversities.map(uni => (
+                        <TableRow key={uni.id}>
+                          <TableCell className="font-medium">{uni.name}</TableCell>
+                          <TableCell>{uni.zone || '-'}</TableCell>
+                          <TableCell>{users.filter(u => u.university_id === uni.id).length}</TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0"><MoreVertical className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleOpenUniversityDialog(uni)}>Editar</DropdownMenuItem>
+                                <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteUniversity(uni.id)}>Eliminar</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
           <TabsContent value="commissions" className="mt-6">
             <Card className="bg-white dark:bg-gray-800/50">
               <CardHeader>
@@ -782,6 +892,36 @@ export default function AdminDashboard({ user, onLogout }) {
               </div>
             </div>
             <Button onClick={handleSaveCommission} className="w-full">{editingCommission ? 'Guardar Cambios' : 'Crear Comisión'}</Button>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create/Edit University Dialog */}
+        <Dialog open={universityDialogOpen} onOpenChange={setUniversityDialogOpen}>
+          <DialogContent className="bg-white dark:bg-gray-900">
+            <DialogHeader>
+              <DialogTitle>{editingUniversity ? 'Editar' : 'Crear'} Universidad</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div>
+                <Label htmlFor="uni-name">Nombre de la Universidad</Label>
+                <Input id="uni-name" value={universityName} onChange={(e) => setUniversityName(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="uni-zone">Zona (Opcional)</Label>
+                <Select value={universityZone} onValueChange={setUniversityZone}>
+                  <SelectTrigger id="uni-zone">
+                    <SelectValue placeholder="Seleccionar zona" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__NONE__">Sin Zona</SelectItem>
+                    {ZONES.map(zone => (
+                      <SelectItem key={zone} value={zone}>Zona {zone}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={handleSaveUniversity} className="w-full">{editingUniversity ? 'Guardar Cambios' : 'Crear Universidad'}</Button>
           </DialogContent>
         </Dialog>
 

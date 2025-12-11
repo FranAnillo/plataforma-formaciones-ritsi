@@ -29,31 +29,26 @@ universities = [
     {
         "id": str(uuid.uuid4()),
         "name": "Universidad Complutense de Madrid",
-        "description": "Universidad pública de Madrid",
         "created_at": datetime.now(timezone.utc).isoformat()
     },
     {
         "id": str(uuid.uuid4()),
         "name": "Universidad de Barcelona",
-        "description": "Universidad pública de Barcelona",
         "created_at": datetime.now(timezone.utc).isoformat()
     },
     {
         "id": str(uuid.uuid4()),
         "name": "Universidad de Sevilla",
-        "description": "Universidad pública de Sevilla",
         "created_at": datetime.now(timezone.utc).isoformat()
     },
     {
         "id": str(uuid.uuid4()),
         "name": "Universidad de Valencia",
-        "description": "Universidad pública de Valencia",
         "created_at": datetime.now(timezone.utc).isoformat()
     },
     {
         "id": str(uuid.uuid4()),
         "name": "Universidad Autónoma de Madrid",
-        "description": "Universidad pública autónoma de Madrid",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
 ]
