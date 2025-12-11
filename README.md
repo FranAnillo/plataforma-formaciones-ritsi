@@ -1,6 +1,6 @@
-# Plataforma Formativa de RITSI
+# Gestión de Formaciones de RITSI
 
-Esta es la plataforma formativa de la **Reunión de Estudiantes de Ingenierías Técnicas y Superiores en Informática (RITSI)**. Una plataforma completa para gestionar contenidos formativos, cuestionarios y seguimiento del progreso de los representantes universitarios de RITSI.
+Esta es la plataforma para gestionar el contenido formativo de la **Reunión de Estudiantes de Ingenierías Técnicas y Superiores en Informática (RITSI)**. Una plataforma completa para gestionar contenidos formativos, cuestionarios y seguimiento del progreso de los representantes universitarios de RITSI.
 
 ## Características Principales
 
