@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Users, Building2, GraduationCap, FileText, Trash2, Eye, MoreVertical, Upload, Download } from 'lucide-react';
+import { LogOut, User, Users, Building2, GraduationCap, FileText, Trash2, Eye, MoreVertical, Upload, Download, Clock, Globe, Shield, UserX, ClipboardList } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -13,7 +13,7 @@ import EscuelaFormacionDashboard from './EscuelaFormacionDashboard';
 import axios from 'axios';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
 import { toast } from 'sonner';
-import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
+import logo from '../static/1710_Isotipo_Degradado.png';
 import { roleNames } from '../utils/roles';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -24,7 +24,13 @@ export default function AdminDashboard({ user, onLogout }) {
     totalUsers: 0,
     totalRepresentatives: 0,
     totalUniversities: 0,
-    totalContents: 0
+    totalContents: 0,
+    totalFormadores: 0,
+    pendingContents: 0,
+    publicContents: 0,
+    totalCommissions: 0,
+    inactiveUsers: 0,
+    totalAssignments: 0,
   });
   const [users, setUsers] = useState([]);
   const [universities, setUniversities] = useState([]);
@@ -50,22 +56,30 @@ export default function AdminDashboard({ user, onLogout }) {
   const fetchData = async () => {
     try {
       // Need to fetch all users, not just representatives
-      const [usersRes, unisRes, contentsRes, assignmentsRes] = await Promise.all([
+      const [usersRes, unisRes, contentsRes, assignmentsRes, commissionsRes] = await Promise.all([
         axios.get(`${API}/users`), // Assuming an endpoint to get all users exists
         axios.get(`${API}/universities`),
         axios.get(`${API}/content`),
-        axios.get(`${API}/assignments`) // Assuming an endpoint to get all assignments
+        axios.get(`${API}/assignments`), // Assuming an endpoint to get all assignments
+        axios.get(`${API}/thematic-commissions`)
       ]);
       
       const allUsers = usersRes.data || [];
+      const allContents = contentsRes.data || [];
       setUsers(allUsers);
       setUniversities(unisRes.data || []);
-      setContents(contentsRes.data || []);
+      setContents(allContents);
       setAssignments(assignmentsRes.data || []);
 
       setStats({
         totalUsers: allUsers.length,
         totalRepresentatives: allUsers.filter(u => u.user_type === 'representante').length,
+        totalFormadores: allUsers.filter(u => u.user_type === 'formador').length,
+        pendingContents: allContents.filter(c => c.status === 'pending').length,
+        publicContents: allContents.filter(c => c.is_public).length,
+        totalCommissions: (commissionsRes.data || []).length,
+        inactiveUsers: allUsers.filter(u => !u.is_active).length,
+        totalAssignments: (assignmentsRes.data || []).length,
         totalUniversities: (unisRes.data || []).length,
         totalContents: (contentsRes.data || []).length
       });
@@ -247,7 +261,7 @@ export default function AdminDashboard({ user, onLogout }) {
           </TabsList>
 
           <TabsContent value="stats" className="mt-6">
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
               <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
@@ -282,6 +296,60 @@ export default function AdminDashboard({ user, onLogout }) {
                     <span className="text-3xl font-bold">{stats.totalRepresentatives}</span>
                   </div>
                   <p className="text-red-100">Representantes</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <Shield className="w-8 h-8 opacity-80" />
+                    <span className="text-3xl font-bold">{stats.totalFormadores}</span>
+                  </div>
+                  <p className="text-red-100">Formadores</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <Clock className="w-8 h-8 opacity-80" />
+                    <span className="text-3xl font-bold">{stats.pendingContents}</span>
+                  </div>
+                  <p className="text-red-100">Contenidos Pendientes</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <Globe className="w-8 h-8 opacity-80" />
+                    <span className="text-3xl font-bold">{stats.publicContents}</span>
+                  </div>
+                  <p className="text-red-100">Contenidos Públicos</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <Users className="w-8 h-8 opacity-80" />
+                    <span className="text-3xl font-bold">{stats.totalCommissions}</span>
+                  </div>
+                  <p className="text-red-100">Comisiones Temáticas</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <UserX className="w-8 h-8 opacity-80" />
+                    <span className="text-3xl font-bold">{stats.inactiveUsers}</span>
+                  </div>
+                  <p className="text-red-100">Usuarios Inactivos</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <ClipboardList className="w-8 h-8 opacity-80" />
+                    <span className="text-3xl font-bold">{stats.totalAssignments}</span>
+                  </div>
+                  <p className="text-red-100">Asignaciones Totales</p>
                 </CardContent>
               </Card>
             </div>
