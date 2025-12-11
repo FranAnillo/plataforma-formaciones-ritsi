@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Users, Building2, GraduationCap, FileText, Trash2, Eye, MoreVertical, Upload, Download } from 'lucide-react';
+import { LogOut, User, Users, Building2, GraduationCap, FileText, Trash2, Eye, MoreVertical, Upload, Download, Clock, Globe, Shield, UserX, ClipboardList } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -13,7 +13,7 @@ import EscuelaFormacionDashboard from './EscuelaFormacionDashboard';
 import axios from 'axios';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
 import { toast } from 'sonner';
-import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
+import logo from '../static/1710_Isotipo_Degradado.png';
 import { roleNames } from '../utils/roles';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -24,19 +24,28 @@ export default function AdminDashboard({ user, onLogout }) {
     totalUsers: 0,
     totalRepresentatives: 0,
     totalUniversities: 0,
-    totalContents: 0
+    totalContents: 0,
+    totalFormadores: 0,
+    pendingContents: 0,
+    publicContents: 0,
+    totalCommissions: 0,
+    inactiveUsers: 0,
+    totalAssignments: 0,
   });
   const [users, setUsers] = useState([]);
   const [universities, setUniversities] = useState([]);
   const [contents, setContents] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [activityLog, setActivityLog] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [viewUserContent, setViewUserContent] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 10;
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('stats');
 
   useEffect(() => {
     fetchData();
@@ -45,27 +54,37 @@ export default function AdminDashboard({ user, onLogout }) {
   useEffect(() => {
     // Reset to the first page whenever filters change
     setCurrentPage(1);
-  }, [searchQuery, filterRole]);
+  }, [searchQuery, filterRole, filterStatus]);
 
   const fetchData = async () => {
     try {
       // Need to fetch all users, not just representatives
-      const [usersRes, unisRes, contentsRes, assignmentsRes] = await Promise.all([
+      const [usersRes, unisRes, contentsRes, assignmentsRes, commissionsRes, logRes] = await Promise.all([
         axios.get(`${API}/users`), // Assuming an endpoint to get all users exists
         axios.get(`${API}/universities`),
         axios.get(`${API}/content`),
-        axios.get(`${API}/assignments`) // Assuming an endpoint to get all assignments
+        axios.get(`${API}/assignments`), // Assuming an endpoint to get all assignments
+        axios.get(`${API}/thematic-commissions`),
+        axios.get(`${API}/activity-log`)
       ]);
       
       const allUsers = usersRes.data || [];
+      const allContents = contentsRes.data || [];
       setUsers(allUsers);
       setUniversities(unisRes.data || []);
-      setContents(contentsRes.data || []);
+      setContents(allContents);
+      setActivityLog(logRes.data || []);
       setAssignments(assignmentsRes.data || []);
 
       setStats({
         totalUsers: allUsers.length,
         totalRepresentatives: allUsers.filter(u => u.user_type === 'representante').length,
+        totalFormadores: allUsers.filter(u => u.user_type === 'formador').length,
+        pendingContents: allContents.filter(c => c.status === 'pending').length,
+        publicContents: allContents.filter(c => c.is_public).length,
+        totalCommissions: (commissionsRes.data || []).length,
+        inactiveUsers: allUsers.filter(u => !u.is_active).length,
+        totalAssignments: (assignmentsRes.data || []).length,
         totalUniversities: (unisRes.data || []).length,
         totalContents: (contentsRes.data || []).length
       });
@@ -180,14 +199,28 @@ export default function AdminDashboard({ user, onLogout }) {
   };
 
   const getUniversityName = (uniId) => universities.find(u => u.id === uniId)?.name || 'N/A';
-  
-  const filteredUsers = users.filter(u => (filterRole === 'all' || u.user_type === filterRole) &&
+
+  const handleStatCardClick = (tab, role, status) => {
+    setActiveTab(tab);
+    setFilterRole(role);
+    setFilterStatus(status);
+  };
+
+  const filteredUsers = users.filter(u => 
+    (filterRole === 'all' || u.user_type === filterRole) &&
+    (filterStatus === 'all' || u.is_active === (filterStatus === 'active')) &&
     (u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase())));
 
   const indexOfLastUser = currentPage * usersPerPage;
   const indexOfFirstUser = indexOfLastUser - usersPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+  const formatTimestamp = (timestamp) => {
+    return new Date(timestamp).toLocaleString('es-ES', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  };
 
   if (loading) {
     return (
@@ -239,16 +272,17 @@ export default function AdminDashboard({ user, onLogout }) {
           <p className="text-gray-600 dark:text-gray-400">Gestión completa de la plataforma</p>
         </div>
 
-        <Tabs defaultValue="stats" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList>
             <TabsTrigger value="stats">Estadísticas</TabsTrigger>
             <TabsTrigger value="users">Gestión de Usuarios</TabsTrigger>
             <TabsTrigger value="content">Gestión de Contenidos</TabsTrigger>
+            <TabsTrigger value="activity">Registro de Actividad</TabsTrigger>
           </TabsList>
 
           <TabsContent value="stats" className="mt-6">
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'all', 'all')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <Users className="w-8 h-8 opacity-80" />
@@ -257,7 +291,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Usuarios Totales</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <Building2 className="w-8 h-8 opacity-80" />
@@ -266,7 +300,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Universidades</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => setActiveTab('content')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <FileText className="w-8 h-8 opacity-80" />
@@ -275,13 +309,67 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Contenidos</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'representante', 'all')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <GraduationCap className="w-8 h-8 opacity-80" />
                     <span className="text-3xl font-bold">{stats.totalRepresentatives}</span>
                   </div>
                   <p className="text-red-100">Representantes</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'formador', 'all')}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <Shield className="w-8 h-8 opacity-80" />
+                    <span className="text-3xl font-bold">{stats.totalFormadores}</span>
+                  </div>
+                  <p className="text-red-100">Formadores</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => setActiveTab('content')}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <Clock className="w-8 h-8 opacity-80" />
+                    <span className="text-3xl font-bold">{stats.pendingContents}</span>
+                  </div>
+                  <p className="text-red-100">Contenidos Pendientes</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => setActiveTab('content')}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <Globe className="w-8 h-8 opacity-80" />
+                    <span className="text-3xl font-bold">{stats.publicContents}</span>
+                  </div>
+                  <p className="text-red-100">Contenidos Públicos</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <Users className="w-8 h-8 opacity-80" />
+                    <span className="text-3xl font-bold">{stats.totalCommissions}</span>
+                  </div>
+                  <p className="text-red-100">Comisiones Temáticas</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'all', 'inactive')}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <UserX className="w-8 h-8 opacity-80" />
+                    <span className="text-3xl font-bold">{stats.inactiveUsers}</span>
+                  </div>
+                  <p className="text-red-100">Usuarios Inactivos</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <ClipboardList className="w-8 h-8 opacity-80" />
+                    <span className="text-3xl font-bold">{stats.totalAssignments}</span>
+                  </div>
+                  <p className="text-red-100">Asignaciones Totales</p>
                 </CardContent>
               </Card>
             </div>
@@ -310,6 +398,16 @@ export default function AdminDashboard({ user, onLogout }) {
                       {Object.entries(roleNames).map(([key, name]) => (
                         <SelectItem key={key} value={key}>{name}</SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los estados</SelectItem>
+                      <SelectItem value="active">Activo</SelectItem>
+                      <SelectItem value="inactive">Inactivo</SelectItem>
                     </SelectContent>
                   </Select>
                   <div className="ml-auto flex items-center gap-2">
@@ -404,6 +502,43 @@ export default function AdminDashboard({ user, onLogout }) {
 
           <TabsContent value="content" className="mt-6">
             <EscuelaFormacionDashboard user={user} onLogout={onLogout} showHeader={false} />
+          </TabsContent>
+          <TabsContent value="activity" className="mt-6">
+            <Card className="bg-white dark:bg-gray-800/50">
+              <CardHeader>
+                <CardTitle>Registro de Actividad</CardTitle>
+                <CardDescription>Auditoría de cambios importantes en la plataforma.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead>Administrador</TableHead>
+                        <TableHead>Acción</TableHead>
+                        <TableHead>Usuario Afectado</TableHead>
+                        <TableHead>Detalles</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {activityLog.map(log => (
+                        <TableRow key={log.id}>
+                          <TableCell>{formatTimestamp(log.timestamp)}</TableCell>
+                          <TableCell>{log.actor_name}</TableCell>
+                          <TableCell>{log.action}</TableCell>
+                          <TableCell>{log.target_user_name}</TableCell>
+                          <TableCell>
+                            {log.details?.from && `De '${roleNames[log.details.from]}' a '${roleNames[log.details.to]}'`}
+                            {log.details?.status && `Usuario ${log.details.status}`}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 
