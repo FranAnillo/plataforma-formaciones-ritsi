@@ -10,13 +10,11 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
 import { roleNames } from '../utils/roles';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import { api, fetchAllData } from '../services/api';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function FormadorDashboard({ user, onLogout }) {
   const navigate = useNavigate();
@@ -41,9 +39,9 @@ export default function FormadorDashboard({ user, onLogout }) {
 
   const fetchData = useCallback(async () => {
     try {
-      const [contentsRes, catsRes] = await Promise.all([
-        axios.get(`${API}/content`),
-        axios.get(`${API}/categories`)
+      const [contentsRes, catsRes] = await fetchAllData([
+        '/content',
+        '/categories'
       ]);
       setContents(contentsRes.data || []);
       setCategories(catsRes.data || []);
@@ -92,7 +90,7 @@ export default function FormadorDashboard({ user, onLogout }) {
   const handleCreateContent = async () => {
     // (Validations for title, files, quizzes as in EscuelaFormacionDashboard)
     try {
-      await axios.post(`${API}/content`, {
+      await api.post('/content', {
         title,
         description,
         is_public: isPublic,
@@ -121,14 +119,7 @@ export default function FormadorDashboard({ user, onLogout }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900">
-        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

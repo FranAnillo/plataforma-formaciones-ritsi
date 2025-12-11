@@ -5,14 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
-import axios from 'axios';
 import { toast } from 'sonner';
 import logo from '../static/1710_Isotipo_Degradado.png';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
 import { roleNames } from '../utils/roles';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import { api, fetchAllData } from '../services/api';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function CoordinadorTematicoDashboard({ user, onLogout }) {
   const [representatives, setRepresentatives] = useState([]);
@@ -31,10 +29,10 @@ export default function CoordinadorTematicoDashboard({ user, onLogout }) {
 
   const fetchData = useCallback(async () => {
     try {
-      const [repsRes, contentsRes, commissionsRes] = await Promise.all([
-        axios.get(`${API}/representatives`),
-        axios.get(`${API}/content`),
-        axios.get(`${API}/thematic-commissions`)
+      const [repsRes, contentsRes, commissionsRes] = await fetchAllData([
+        '/representatives',
+        '/content',
+        '/thematic-commissions'
       ]);
       setRepresentatives(repsRes.data || []);
       setContents(contentsRes.data || []);
@@ -61,7 +59,7 @@ export default function CoordinadorTematicoDashboard({ user, onLogout }) {
   const handleAssignUsersToCommission = async () => {
     if (!assignToCommission) return;
     try {
-      await axios.put(`${API}/thematic-commissions/${assignToCommission.id}/assign-users`, {
+      await api.put(`/thematic-commissions/${assignToCommission.id}/assign-users`, {
         user_ids: selectedUsersForCommission
       });
       toast.success(`Representantes asignados a "${assignToCommission.name}"`);
@@ -78,7 +76,7 @@ export default function CoordinadorTematicoDashboard({ user, onLogout }) {
       return;
     }
     try {
-      await axios.post(`${API}/assignments`, {
+      await api.post('/assignments', {
         content_id: selectedContent,
         user_ids: selectedUsersForContent
       });
@@ -92,14 +90,7 @@ export default function CoordinadorTematicoDashboard({ user, onLogout }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900">
-        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

@@ -12,14 +12,11 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import EscuelaFormacionDashboard from './EscuelaFormacionDashboard';
-import axios from 'axios';
-import { ThemeToggleButton } from '../components/ThemeToggleButton';
 import { toast } from 'sonner';
-import logo from '../static/1710_Isotipo_Degradado.png';
 import { roleNames } from '../utils/roles';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import { api, fetchAllData } from '../services/api';
+import DashboardLayout from '../components/DashboardLayout';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function AdminDashboard({ user, onLogout }) {
   const [stats, setStats] = useState({
@@ -84,13 +81,13 @@ export default function AdminDashboard({ user, onLogout }) {
   const fetchData = async () => {
     try {
       // Need to fetch all users, not just representatives
-      const [usersRes, unisRes, contentsRes, assignmentsRes, commissionsRes, logRes] = await Promise.all([
-        axios.get(`${API}/users`), // Assuming an endpoint to get all users exists
-        axios.get(`${API}/universities`),
-        axios.get(`${API}/content`),
-        axios.get(`${API}/assignments`), // Assuming an endpoint to get all assignments
-        axios.get(`${API}/thematic-commissions`),
-        axios.get(`${API}/activity-log`)
+      const [usersRes, unisRes, contentsRes, assignmentsRes, commissionsRes, logRes] = await fetchAllData([
+        '/users',
+        '/universities',
+        '/content',
+        '/assignments',
+        '/thematic-commissions',
+        '/activity-log'
       ]);
       
       const allUsers = usersRes.data || [];
@@ -133,7 +130,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const handleUnassign = async (userId, contentId) => {
     try {
-      await axios.post(`${API}/assignments/unassign`, { user_id: userId, content_id: contentId });
+      await api.post('/assignments/unassign', { user_id: userId, content_id: contentId });
       toast.success('Formación retirada exitosamente');
       fetchData(); // Refresh data
     } catch (error) {
@@ -143,7 +140,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const handleRoleChange = async (userId, newRole) => {
     try {
-      await axios.put(`${API}/users/${userId}/role`, { user_type: newRole });
+      await api.put(`/users/${userId}/role`, { user_type: newRole });
       toast.success('Rol de usuario actualizado');
       fetchData(); // Refresh data
     } catch (error) {
@@ -153,7 +150,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const handleStatusChange = async (userId, isActive) => {
     try {
-      await axios.put(`${API}/users/${userId}/status`, { is_active: isActive });
+      await api.put(`/users/${userId}/status`, { is_active: isActive });
       toast.success(`Usuario ${isActive ? 'activado' : 'desactivado'}`);
       fetchData(); // Refresh data
     } catch (error) {
@@ -201,7 +198,7 @@ export default function AdminDashboard({ user, onLogout }) {
       }).filter(u => u.email); // Filter out empty rows
 
       try {
-        const response = await axios.post(`${API}/users/import`, { users: usersToImport });
+        const response = await api.post('/users/import', { users: usersToImport });
         const { created, skipped, errors } = response.data;
         let message = `Importación completada: ${created} usuarios creados, ${skipped} omitidos.`;
         if (errors.length > 0) {
@@ -250,8 +247,8 @@ export default function AdminDashboard({ user, onLogout }) {
       return;
     }
     const url = editingCommission
-      ? `${API}/thematic-commissions/${editingCommission.id}`
-      : `${API}/thematic-commissions`;
+      ? `/thematic-commissions/${editingCommission.id}`
+      : '/thematic-commissions';
     const method = editingCommission ? 'put' : 'post';
     const data = {
       name: commissionName,
@@ -259,7 +256,7 @@ export default function AdminDashboard({ user, onLogout }) {
     };
 
     try {
-      await axios[method](url, data);
+      await apimethod;
       toast.success(`Comisión ${editingCommission ? 'actualizada' : 'creada'} exitosamente.`);
       setCommissionDialogOpen(false);
       fetchData();
@@ -279,7 +276,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const handleSaveMembers = async () => {
     if (!assignMembersDialogOpen) return;
     try {
-      await axios.put(`${API}/thematic-commissions/${assignMembersDialogOpen.id}/assign-users`, {
+      await api.put(`/thematic-commissions/${assignMembersDialogOpen.id}/assign-users`, {
         user_ids: selectedMembers,
       });
       toast.success('Miembros de la comisión actualizados.');
@@ -292,7 +289,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const handleDeleteCommission = async (commissionId) => {
     try {
-      await axios.delete(`${API}/thematic-commissions/${commissionId}`);
+      await api.delete(`/thematic-commissions/${commissionId}`);
       toast.success('Comisión eliminada exitosamente.');
       fetchData();
     } catch (error) {
@@ -354,55 +351,16 @@ export default function AdminDashboard({ user, onLogout }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700">Cargando panel...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner message="Cargando panel..." />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="Logo de Gestión de Formaciones RITSI" className="w-10 h-10 rounded-xl object-cover" />
-            <div>
-              <h1 className="text-xl font-bold">Gestión de Formaciones RITSI</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{roleNames[user.user_type] || 'Usuario'}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <ThemeToggleButton />
-            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-full transition-colors">
-              <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-              <span className="text-sm font-medium">{user.name}</span>
-            </div>
-            <Button
-              data-testid="logout-button"
-              onClick={onLogout}
-              variant="ghost"
-              size="sm"
-              className="hover:bg-red-50 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Cerrar Sesión
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Panel de Administración
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400">Gestión completa de la plataforma</p>
-        </div>
-
+    <DashboardLayout
+      user={user}
+      onLogout={onLogout}
+      pageTitle="Panel de Administración"
+      pageDescription="Gestión completa de la plataforma"
+    >
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList>
             <TabsTrigger value="stats">Estadísticas</TabsTrigger>
@@ -857,7 +815,6 @@ export default function AdminDashboard({ user, onLogout }) {
             <Button onClick={handleSaveMembers} className="w-full">Guardar Miembros</Button>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+    </DashboardLayout>
   );
 }
