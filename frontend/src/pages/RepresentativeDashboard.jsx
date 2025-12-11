@@ -1,29 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, LogOut, User, TrendingUp } from 'lucide-react';
+import { BookOpen, LogOut, User, TrendingUp, Search } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
+import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Checkbox } from '../components/ui/checkbox';
+import { Label } from '../components/ui/label';
 import axios from 'axios';
 import { toast } from 'sonner';
 import logo from '../static/1710_Isotipo_Degradado.png';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
+import { roleNames } from '../utils/roles';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-
-const roleNames = {
-  admin: 'Administrador',
-  escuela_formacion: 'Escuela de Formación',
-  junta_directiva: 'Junta Directiva',
-  universidad: 'Universidad',
-  representante: 'Representante',
-};
 
 export default function RepresentativeDashboard({ user, onLogout }) {
   const [contents, setContents] = useState([]);
   const [progress, setProgress] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showOnlyPublic, setShowOnlyPublic] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -60,6 +58,12 @@ export default function RepresentativeDashboard({ user, onLogout }) {
     
     return Math.round(((completedFiles + completedQuizzes) / totalItems) * 100);
   };
+
+  const filteredContents = contents.filter(content => {
+    const matchesPublicFilter = !showOnlyPublic || content.is_public;
+    const matchesSearch = content.title.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesPublicFilter && matchesSearch;
+  });
 
   if (loading) {
     return (
@@ -106,21 +110,40 @@ export default function RepresentativeDashboard({ user, onLogout }) {
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Mi Contenido Formativo</h2>
-          <p className="text-gray-600 dark:text-gray-400">Completa los contenidos y cuestionarios asignados</p>
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Mi Contenido Formativo</h2>
+            <p className="text-gray-600 dark:text-gray-400">Completa los contenidos y cuestionarios asignados</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Input
+                placeholder="Buscar por título..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 w-64"
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox id="show-public" checked={showOnlyPublic} onCheckedChange={setShowOnlyPublic} />
+              <Label htmlFor="show-public">Mostrar solo contenido público</Label>
+            </div>
+          </div>
         </div>
 
-        {contents.length === 0 ? (
+        {filteredContents.length === 0 ? (
           <Card className="text-center py-12 bg-white dark:bg-gray-800/50">
             <CardContent>
               <BookOpen className="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-600 dark:text-gray-400 text-lg">No tienes contenido asignado aún</p>
+              <p className="text-gray-600 dark:text-gray-400 text-lg">
+                {searchQuery ? 'No se encontraron formaciones con ese título' : (showOnlyPublic ? 'No hay contenido público disponible' : 'No tienes contenido asignado aún')}
+              </p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {contents.map((content) => {
+            {filteredContents.map((content) => {
               const prog = getProgressForContent(content.id);
               const progressPercent = calculateProgress(content, prog);
               const isCompleted = prog?.completed || false;
