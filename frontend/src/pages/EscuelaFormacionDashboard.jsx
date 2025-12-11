@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
-import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, GripVertical, Eye, Users, Check, X } from 'lucide-react';
+import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, GripVertical, Eye, Users, Check, X, Filter } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -32,6 +32,10 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
   // Category management states
   const [editCategory, setEditCategory] = useState(null);
   const [deleteCategory, setDeleteCategory] = useState(null);
+
+  // Content filter states
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [visibilityFilter, setVisibilityFilter] = useState('all');
 
   // Create content form states
   const [title, setTitle] = useState('');
@@ -379,9 +383,6 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     return categoryIds.map(id => categories.find(cat => cat.id === id)?.name).filter(Boolean);
   };
 
-
-
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
@@ -393,14 +394,52 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     );
   }
 
+  // Filter contents based on status and visibility
+  const filteredContents = contents.filter(content => {
+    let statusMatch =
+      statusFilter === 'all' ||
+      content.status === statusFilter;
+    let visibilityMatch =
+      visibilityFilter === 'all' ||
+      (visibilityFilter === 'public' && content.is_public) ||
+      (visibilityFilter === 'private' && !content.is_public);
+    return statusMatch && visibilityMatch;
+  });
+
   const dashboardContent = (
-    <>
-        <div className="flex justify-between items-center mb-8">
+    <div className="flex flex-col gap-8"> {/* Cambiado a columna y separado por espacio */}
+      {/* Filtros y acciones arriba */}
+      <div className="flex justify-between items-center mb-8">
+        {showHeader && (
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{showHeader ? `Panel de ${roleNames[user.user_type]}` : 'Gestión de Contenidos'}</h2>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{`Panel de ${roleNames[user.user_type]}`}</h2>
             <p className="text-gray-600 dark:text-gray-400">Crea y asigna contenidos formativos</p>
           </div>
-          <div className="flex gap-3">
+        )}
+        <div className={`flex gap-3 ${!showHeader && 'w-full justify-between'}`}> {/* Filtros y botones */}
+          {user.user_type !== 'formador' && (
+            <div className="flex items-center gap-2">
+              <Label>Estado:</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="published">Publicado</SelectItem>
+                </SelectContent>
+              </Select>
+              <Label>Visibilidad:</Label>
+              <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
+                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="public">Público</SelectItem>
+                  <SelectItem value="private">Privado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="flex gap-3 ml-auto">
             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button data-testid="create-content-button" className="bg-[#da2724] hover:bg-[#b8211e]">
@@ -711,7 +750,6 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                 </div>
               </DialogContent>
             </Dialog>
-
             <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
               <DialogTrigger asChild>
                 <Button data-testid="assign-content-button" variant="outline">
@@ -810,79 +848,84 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
             </Dialog>
           </div>
         </div>
+      </div>
 
-        <Card className="bg-white dark:bg-gray-800/50">
-          <CardHeader>
-            <CardTitle>Contenidos Creados ({contents.length})</CardTitle>
-          </CardHeader>
- <CardContent>
-            {contents.length === 0 ? (
-              <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay contenidos creados aún</p>
- ) : (
- <div className="space-y-4">
- {contents.map((content) => (
- <Card key={content.id} className="hover:shadow-lg transition-shadow bg-white dark:bg-gray-800">
- <CardContent className="pt-6">
- <div className="flex justify-between items-start">
- <div>
- <h3 className="font-bold text-lg mb-2">{content.title}</h3>
- {content.description && (
- <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{content.description}</p>
- )}
- </div>
- <div className="flex flex-col items-end gap-2">
-  <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-    content.status === 'published' 
-      ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' 
-      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200'
-  }`}>
-    {content.status === 'published' ? 'Publicado' : 'Pendiente'}
-  </span>
- </div>
- </div>
- {content.is_public && (
-  <div className="mb-2">
-    <span className="text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200 px-2 py-1 rounded-full">Público</span>
-  </div>
- )}
- {getCategoryNames(content.category_ids).length > 0 && (
- <div className="flex flex-wrap gap-2 mb-3">
- {getCategoryNames(content.category_ids).map(name => (
- <span key={name} className="text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 px-2 py-1 rounded-full">{name}</span>
- ))}
- </div>
- )}
-  <div className="flex items-center justify-between mt-4">
-    <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-      <span className="flex items-center gap-1"><FileText className="w-4 h-4" />{content.files.length} archivos</span>
-      <span className="flex items-center gap-1"><HelpCircle className="w-4 h-4" />{content.quizzes.length} cuestionarios</span>
-    </div>
-    <div className="flex items-center">
-    {user.user_type !== 'formador' && content.status === 'pending' && (
-      <>
-        <Button onClick={() => handleApproveContent(content.id)} variant="ghost" size="sm" className="text-green-600 hover:text-green-700"><Check className="w-4 h-4 mr-2" /> Aprobar</Button>
-        <Button onClick={() => handleRejectContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700"><X className="w-4 h-4 mr-2" /> Rechazar</Button>
-      </>
-    )}
-    <Button onClick={() => navigate(`/content/${content.id}?preview=true`)} variant="ghost" size="sm">
-      <Eye className="w-4 h-4 mr-2" />
-      Vista Previa
-    </Button>
-    <Button onClick={() => handleDeleteContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-      <Trash2 className="w-4 h-4 mr-2" />
-      Eliminar
-    </Button>
-  </div>
- </div>
- </CardContent>
- </Card>
- ))}
- </div>
- )}
- </CardContent>
+      {/* Contenidos */}
+      <Card className="bg-white dark:bg-gray-800/50">
+        <CardHeader>
+          <CardTitle>Contenidos Creados ({filteredContents.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredContents.length === 0 ? (
+            <p className="text-gray-600 dark:text-gray-400 text-center py-8">
+              {contents.length > 0 ? 'No hay contenidos que coincidan con los filtros actuales.' : 'No hay contenidos creados aún.'}
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {filteredContents.map((content) => (
+                <Card key={content.id} className="hover:shadow-lg transition-shadow bg-white dark:bg-gray-800">
+                  <CardContent className="pt-6">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-lg mb-2">{content.title}</h3>
+                        {content.description && (
+                          <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{content.description}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                          content.status === 'published' 
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' 
+                            : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200'
+                        }`}>
+                          {content.status === 'published' ? 'Publicado' : 'Pendiente'}
+                        </span>
+                      </div>
+                    </div>
+                    {content.is_public && (
+                      <div className="mb-2">
+                        <span className="text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200 px-2 py-1 rounded-full">Público</span>
+                      </div>
+                    )}
+                    {getCategoryNames(content.category_ids).length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {getCategoryNames(content.category_ids).map(name => (
+                          <span key={name} className="text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 px-2 py-1 rounded-full">{name}</span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+                        <span className="flex items-center gap-1"><FileText className="w-4 h-4" />{content.files.length} archivos</span>
+                        <span className="flex items-center gap-1"><HelpCircle className="w-4 h-4" />{content.quizzes.length} cuestionarios</span>
+                      </div>
+                      <div className="flex items-center">
+                        {user.user_type !== 'formador' && content.status === 'pending' && (
+                          <>
+                            <Button onClick={() => handleApproveContent(content.id)} variant="ghost" size="sm" className="text-green-600 hover:text-green-700"><Check className="w-4 h-4 mr-2" /> Aprobar</Button>
+                            <Button onClick={() => handleRejectContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700"><X className="w-4 h-4 mr-2" /> Rechazar</Button>
+                          </>
+                        )}
+                        <Button onClick={() => navigate(`/content/${content.id}?preview=true`)} variant="ghost" size="sm">
+                          <Eye className="w-4 h-4 mr-2" />
+                          Vista Previa
+                        </Button>
+                        <Button onClick={() => handleDeleteContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Eliminar
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
       </Card>
 
-      <Card className="bg-white dark:bg-gray-800/50 mt-8">
+      {/* Gestión de Categorías */}
+      <Card className="bg-white dark:bg-gray-800/50 mt-0"> {/* Quitamos margen extra arriba */}
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Tag className="w-5 h-5" />
@@ -912,7 +955,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
         </CardContent>
       </Card>
 
-      {/* Edit Category Dialog */}
+      {/* Diálogos de edición y borrado de categoría */}
       <Dialog open={!!editCategory} onOpenChange={() => setEditCategory(null)}>
         <DialogContent className="bg-white dark:bg-gray-900">
           <DialogHeader>
@@ -926,7 +969,6 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
         </DialogContent>
       </Dialog>
 
-      {/* Delete Category Dialog */}
       <Dialog open={!!deleteCategory} onOpenChange={() => setDeleteCategory(null)}>
         <DialogContent className="bg-white dark:bg-gray-900">
           <DialogHeader>
@@ -941,7 +983,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 
   if (!showHeader) {
