@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
-import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, GripVertical, Eye, Users } from 'lucide-react';
+import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, GripVertical, Eye, Users, Check, X } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -14,24 +14,16 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
+import { roleNames } from '../utils/roles';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-
-const roleNames = {
-  admin: 'Administrador',
-  escuela_formacion: 'Escuela de Formación',
-  junta_directiva: 'Junta Directiva',
-  universidad: 'Universidad',
-  representante: 'Representante',
-};
 
 export default function EscuelaFormacionDashboard({ user, onLogout, showHeader = true }) {
   console.log(user.user_type);
   const navigate = useNavigate();
   const [contents, setContents] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [thematicCommissions, setThematicCommissions] = useState([]);
   const [representatives, setRepresentatives] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -41,14 +33,10 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
   const [editCategory, setEditCategory] = useState(null);
   const [deleteCategory, setDeleteCategory] = useState(null);
 
-  // Thematic Commission management states
-  const [commissionDialogOpen, setCommissionDialogOpen] = useState(false);
-  const [editCommission, setEditCommission] = useState(null);
-  const [deleteCommission, setDeleteCommission] = useState(null);
-
   // Create content form states
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [files, setFiles] = useState([]);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -72,16 +60,14 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
 
   const fetchData = async () => {
     try {
-      const [contentsRes, repsRes, catsRes, commissionsRes] = await Promise.all([
+      const [contentsRes, repsRes, catsRes] = await Promise.all([
         axios.get(`${API}/content`),
         axios.get(`${API}/representatives`),
-        axios.get(`${API}/categories`),
-        axios.get(`${API}/thematic-commissions`)
+        axios.get(`${API}/categories`)
       ]);
       setContents(contentsRes.data || []);
       setRepresentatives(repsRes.data);
       setCategories(catsRes.data || []);
-      setThematicCommissions(commissionsRes.data || []);
     } catch (error) {
       toast.error('Error al cargar datos');
     } finally {
@@ -245,6 +231,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
       await axios.post(`${API}/content`, {
         title,
         description,
+        is_public: isPublic,
         category_ids: selectedCategories,
         files,
         quizzes
@@ -256,6 +243,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
       // Reset form
       setTitle('');
       setDescription('');
+      setIsPublic(false);
       setSelectedCategories([]);
       setFiles([]);
       setQuizzes([]);
@@ -347,45 +335,23 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     }
   };
 
-  const handleCreateCommission = async (name) => {
-    if (!name.trim()) {
-      toast.error('El nombre de la comisión no puede estar vacío');
-      return;
-    }
+  const handleApproveContent = async (contentId) => {
     try {
-      const response = await axios.post(`${API}/thematic-commissions`, { name });
-      toast.success(`Comisión "${response.data.name}" creada`);
-      setThematicCommissions([...thematicCommissions, response.data]);
-      setCommissionDialogOpen(false);
+      await axios.post(`${API}/content/${contentId}/approve`);
+      toast.success('Contenido aprobado y publicado');
+      fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al crear la comisión');
+      toast.error(error.response?.data?.detail || 'Error al aprobar el contenido');
     }
   };
 
-  const handleUpdateCommission = async () => {
-    if (!editCommission || !editCommission.name.trim()) {
-      toast.error('El nombre no puede estar vacío');
-      return;
-    }
+  const handleRejectContent = async (contentId) => {
     try {
-      const response = await axios.put(`${API}/thematic-commissions/${editCommission.id}`, { name: editCommission.name });
-      toast.success('Comisión actualizada');
-      setThematicCommissions(thematicCommissions.map(c => c.id === editCommission.id ? response.data : c));
-      setEditCommission(null);
+      await axios.post(`${API}/content/${contentId}/reject`);
+      toast.success('Contenido rechazado y eliminado');
+      fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al actualizar la comisión');
-    }
-  };
-
-  const handleDeleteCommission = async () => {
-    if (!deleteCommission) return;
-    try {
-      await axios.delete(`${API}/thematic-commissions/${deleteCommission.id}`);
-      toast.success(`Comisión "${deleteCommission.name}" eliminada`);
-      setThematicCommissions(thematicCommissions.filter(c => c.id !== deleteCommission.id));
-      setDeleteCommission(null);
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al eliminar la comisión');
+      toast.error(error.response?.data?.detail || 'Error al rechazar el contenido');
     }
   };
 
@@ -431,7 +397,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     <>
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{showHeader ? 'Panel de Escuela de Formación' : 'Gestión de Contenidos'}</h2>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{showHeader ? `Panel de ${roleNames[user.user_type]}` : 'Gestión de Contenidos'}</h2>
             <p className="text-gray-600 dark:text-gray-400">Crea y asigna contenidos formativos</p>
           </div>
           <div className="flex gap-3">
@@ -467,6 +433,14 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                         placeholder="Descripción del contenido"
                         rows={3}
                       />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="is-public"
+                        checked={isPublic}
+                        onCheckedChange={setIsPublic}
+                      />
+                      <Label htmlFor="is-public" className="cursor-pointer">Marcar como contenido público (visible para todos)</Label>
                     </div>
                     <div>
                       <Label>Categorías</Label>
@@ -767,7 +741,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                     <Label className="text-base font-semibold mb-3 block">Selecciona Contenido</Label>
                     <div className="space-y-2 max-h-48 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
                       {filteredContentsForAssignment.map((content) => (
-                        <div key={content.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
+                        <div key={content.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
                           <input
                             type="radio"
                             id={`content-${content.id}`}
@@ -800,7 +774,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                       <Label className="text-base font-semibold mb-3 block">Selecciona Representantes</Label>
                       <div className="space-y-2 max-h-64 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
                         {representatives.map((rep) => (
-                          <div key={rep.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
+                          <div key={rep.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
                             <Checkbox
                               id={`rep-${rep.id}`}
                               checked={selectedUsers.includes(rep.id)}
@@ -856,6 +830,21 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
  <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{content.description}</p>
  )}
  </div>
+ <div className="flex flex-col items-end gap-2">
+  <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+    content.status === 'published' 
+      ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' 
+      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200'
+  }`}>
+    {content.status === 'published' ? 'Publicado' : 'Pendiente'}
+  </span>
+ </div>
+ </div>
+ {content.is_public && (
+  <div className="mb-2">
+    <span className="text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200 px-2 py-1 rounded-full">Público</span>
+  </div>
+ )}
  {getCategoryNames(content.category_ids).length > 0 && (
  <div className="flex flex-wrap gap-2 mb-3">
  {getCategoryNames(content.category_ids).map(name => (
@@ -863,7 +852,18 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
  ))}
  </div>
  )}
-  <div className="flex items-center">
+  <div className="flex items-center justify-between mt-4">
+    <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+      <span className="flex items-center gap-1"><FileText className="w-4 h-4" />{content.files.length} archivos</span>
+      <span className="flex items-center gap-1"><HelpCircle className="w-4 h-4" />{content.quizzes.length} cuestionarios</span>
+    </div>
+    <div className="flex items-center">
+    {user.user_type !== 'formador' && content.status === 'pending' && (
+      <>
+        <Button onClick={() => handleApproveContent(content.id)} variant="ghost" size="sm" className="text-green-600 hover:text-green-700"><Check className="w-4 h-4 mr-2" /> Aprobar</Button>
+        <Button onClick={() => handleRejectContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700"><X className="w-4 h-4 mr-2" /> Rechazar</Button>
+      </>
+    )}
     <Button onClick={() => navigate(`/content/${content.id}?preview=true`)} variant="ghost" size="sm">
       <Eye className="w-4 h-4 mr-2" />
       Vista Previa
@@ -873,16 +873,6 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
       Eliminar
     </Button>
   </div>
- </div>
- <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="flex items-center gap-1">
-                          <FileText className="w-4 h-4" />
-                          {content.files.length} archivos
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <HelpCircle className="w-4 h-4" />
-                          {content.quizzes.length} cuestionarios
-                        </span>
  </div>
  </CardContent>
  </Card>
