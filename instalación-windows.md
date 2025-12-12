@@ -4,6 +4,8 @@ Plataforma de Formaciones RITSI
 
 Esta guía describe todos los pasos necesarios para instalar y ejecutar la plataforma (backend + frontend) en un entorno Windows de forma correcta.
 
+Para comprobar si funciona correctamente, ten en cuenta que no puedes estar en un navegador que bloquea anuncios o cookies ya que puede dar problemas con el SSO.
+
 ---
 
 ## 🧩 Prerrequisitos
