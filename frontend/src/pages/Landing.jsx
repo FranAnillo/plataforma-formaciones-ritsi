@@ -13,8 +13,8 @@ export default function Landing() {
       <header className="container mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="Plataforma Formativa Logo" className="w-10 h-10" />
-            <h1 className="text-2xl font-bold">Plataforma Formativa</h1>
+            <img src={logo} alt="Logo de Gestión de Formaciones RITSI" className="w-10 h-10" />
+            <h1 className="text-2xl font-bold">Gestión de Formaciones RITSI</h1>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggleButton />
@@ -79,7 +79,7 @@ export default function Landing() {
       {/* Footer */}
       <footer className="container mx-auto px-6 py-8 mt-20 border-t border-gray-200 dark:border-gray-800">
         <p className="text-center text-gray-600 dark:text-gray-400">
-          © 2025 Plataforma Formativa de <a href="https://ritsi.org" target="_blank" rel="noopener noreferrer" className="text-[#da2724] hover:underline">RITSI</a>.
+          © 2025 Gestión de Formaciones <a href="https://ritsi.org" target="_blank" rel="noopener noreferrer" className="text-[#da2724] hover:underline">RITSI</a>.
         </p>
       </footer>
     </div>

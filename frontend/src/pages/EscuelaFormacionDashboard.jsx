@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
-import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle } from 'lucide-react';
+import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle, Edit, Tag, GripVertical, Eye, Users, Check, X, Filter } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -9,40 +10,51 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
-import { ThemeToggleButton } from '../components/ThemeToggleButton';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const roleNames = {
-  admin: 'Administrador',
-  escuela_formacion: 'Escuela de Formación',
-  junta_directiva: 'Junta Directiva',
-  universidad: 'Universidad',
-  representante: 'Representante',
-};
+import { roleNames } from '../utils/roles';
+import { api, fetchAllData } from '../services/api';
+import DashboardLayout from '../components/DashboardLayout';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function EscuelaFormacionDashboard({ user, onLogout, showHeader = true }) {
   console.log(user.user_type);
+  const navigate = useNavigate();
   const [contents, setContents] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [representatives, setRepresentatives] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   
+  // Category management states
+  const [editCategory, setEditCategory] = useState(null);
+  const [deleteCategory, setDeleteCategory] = useState(null);
+
+  // Content filter states
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [visibilityFilter, setVisibilityFilter] = useState('all');
+
   // Create content form states
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState([]);
   const [files, setFiles] = useState([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
   const [quizzes, setQuizzes] = useState([]);
   
   // Assign content states
   const [selectedContent, setSelectedContent] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
+  const [assignCategoryFilter, setAssignCategoryFilter] = useState('all');
   const [assignToAll, setAssignToAll] = useState(false);
+
+  // Drag and drop state
+  const dragItem = useRef(null);
+  const dragOverItem = useRef(null);
+  const [draggingItem, setDraggingItem] = useState(null);
+
 
   useEffect(() => {
     fetchData();
@@ -50,12 +62,14 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
 
   const fetchData = async () => {
     try {
-      const [contentsRes, repsRes] = await Promise.all([
-        axios.get(`${API}/content`),
-        axios.get(`${API}/representatives`)
+      const [contentsRes, repsRes, catsRes] = await fetchAllData([
+        '/content',
+        '/representatives',
+        '/categories'
       ]);
       setContents(contentsRes.data || []);
       setRepresentatives(repsRes.data);
+      setCategories(catsRes.data || []);
     } catch (error) {
       toast.error('Error al cargar datos');
     } finally {
@@ -75,6 +89,26 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
 
   const removeFile = (index) => {
     setFiles(files.filter((_, i) => i !== index));
+  };
+
+  const handleFileSort = () => {
+    const newFiles = [...files];
+    const draggedItemContent = newFiles.splice(dragItem.current, 1)[0];
+    newFiles.splice(dragOverItem.current, 0, draggedItemContent);
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setFiles(newFiles);
+    setDraggingItem(null);
+  };
+
+  const handleQuizSort = () => {
+    const newQuizzes = [...quizzes];
+    const draggedItemContent = newQuizzes.splice(dragItem.current, 1)[0];
+    newQuizzes.splice(dragOverItem.current, 0, draggedItemContent);
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setQuizzes(newQuizzes);
+    setDraggingItem(null);
   };
 
   const addQuiz = () => {
@@ -196,9 +230,11 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     }
 
     try {
-      await axios.post(`${API}/content`, {
+      await api.post('/content', {
         title,
         description,
+        is_public: isPublic,
+        category_ids: selectedCategories,
         files,
         quizzes
       });
@@ -209,6 +245,8 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
       // Reset form
       setTitle('');
       setDescription('');
+      setIsPublic(false);
+      setSelectedCategories([]);
       setFiles([]);
       setQuizzes([]);
       
@@ -231,7 +269,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     }
 
     try {
-      await axios.post(`${API}/assignments`, {
+      await api.post('/assignments', {
         content_id: selectedContent,
         user_ids: assignToAll ? undefined : selectedUsers,
         assign_to_all_representatives: assignToAll
@@ -247,9 +285,81 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     }
   };
 
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) {
+      toast.error('El nombre de la categoría no puede estar vacío');
+      return;
+    }
+
+    try {
+      const response = await api.post('/categories', { name: newCategoryName });
+      const newCategory = response.data;
+      
+      toast.success(`Categoría "${newCategory.name}" creada`);
+      
+      // Add to state and auto-select
+      setCategories([...categories, newCategory]);
+      setSelectedCategories([...selectedCategories, newCategory.id]);
+      
+      // Reset input
+      setNewCategoryName('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al crear la categoría');
+    }
+  };
+
+  const handleUpdateCategory = async () => {
+    if (!editCategory || !editCategory.name.trim()) {
+      toast.error('El nombre no puede estar vacío');
+      return;
+    }
+    try {
+      const response = await api.put(`/categories/${editCategory.id}`, { name: editCategory.name });
+      toast.success('Categoría actualizada');
+      setCategories(categories.map(c => c.id === editCategory.id ? response.data : c));
+      setEditCategory(null);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al actualizar la categoría');
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!deleteCategory) return;
+    try {
+      await api.delete(`/categories/${deleteCategory.id}`);
+      toast.success(`Categoría "${deleteCategory.name}" eliminada`);
+      setCategories(categories.filter(c => c.id !== deleteCategory.id));
+      // Also remove from selected categories if it was selected
+      setSelectedCategories(selectedCategories.filter(id => id !== deleteCategory.id));
+      setDeleteCategory(null);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al eliminar la categoría');
+    }
+  };
+
+  const handleApproveContent = async (contentId) => {
+    try {
+      await api.post(`/content/${contentId}/approve`);
+      toast.success('Contenido aprobado y publicado');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al aprobar el contenido');
+    }
+  };
+
+  const handleRejectContent = async (contentId) => {
+    try {
+      await api.post(`/content/${contentId}/reject`);
+      toast.success('Contenido rechazado y eliminado');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al rechazar el contenido');
+    }
+  };
+
   const handleDeleteContent = async (contentId) => {
     try {
-      await axios.delete(`${API}/content/${contentId}`);
+      await api.delete(`/content/${contentId}`);
       toast.success('Contenido eliminado exitosamente');
 
       // Refresh data
@@ -259,28 +369,68 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     }
   };
 
+  const filteredContentsForAssignment = contents.filter(content => {
+    if (assignCategoryFilter === 'all') {
+      return true;
+    }
+    return content.category_ids?.includes(assignCategoryFilter);
+  });
 
-
+  const getCategoryNames = (categoryIds) => {
+    if (!categoryIds || categoryIds.length === 0) return [];
+    return categoryIds.map(id => categories.find(cat => cat.id === id)?.name).filter(Boolean);
+  };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
-        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
+  // Filter contents based on status and visibility
+  const filteredContents = contents.filter(content => {
+    let statusMatch =
+      statusFilter === 'all' ||
+      content.status === statusFilter;
+    let visibilityMatch =
+      visibilityFilter === 'all' ||
+      (visibilityFilter === 'public' && content.is_public) ||
+      (visibilityFilter === 'private' && !content.is_public);
+    return statusMatch && visibilityMatch;
+  });
+
   const dashboardContent = (
-    <>
-        <div className="flex justify-between items-center mb-8">
+    <div className="flex flex-col gap-8"> {/* Cambiado a columna y separado por espacio */}
+      {/* Filtros y acciones arriba */}
+      <div className="flex justify-between items-center mb-8">
+        {showHeader && (
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{showHeader ? 'Panel de Escuela de Formación' : 'Gestión de Contenidos'}</h2>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{`Panel de ${roleNames[user.user_type]}`}</h2>
             <p className="text-gray-600 dark:text-gray-400">Crea y asigna contenidos formativos</p>
           </div>
-          <div className="flex gap-3">
+        )}
+        <div className={`flex gap-3 ${!showHeader && 'w-full justify-between'}`}> {/* Filtros y botones */}
+          {user.user_type !== 'formador' && (
+            <div className="flex items-center gap-2">
+              <Label>Estado:</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="published">Publicado</SelectItem>
+                </SelectContent>
+              </Select>
+              <Label>Visibilidad:</Label>
+              <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
+                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="public">Público</SelectItem>
+                  <SelectItem value="private">Privado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="flex gap-3 ml-auto">
             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button data-testid="create-content-button" className="bg-[#da2724] hover:bg-[#b8211e]">
@@ -314,6 +464,48 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                         rows={3}
                       />
                     </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="is-public"
+                        checked={isPublic}
+                        onCheckedChange={setIsPublic}
+                      />
+                      <Label htmlFor="is-public" className="cursor-pointer">Marcar como contenido público (visible para todos)</Label>
+                    </div>
+                    <div>
+                      <Label>Categorías</Label>
+                      <div className="flex flex-wrap gap-2 border rounded-md p-2 mt-2">
+                        {categories.length > 0 ? categories.map(category => (
+                          <div
+                            key={category.id}
+                            className={`flex items-center space-x-2 p-2 rounded-md cursor-pointer transition-colors ${
+                              selectedCategories.includes(category.id)
+                                ? 'bg-red-100 dark:bg-red-900/50'
+                                : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                            onClick={() => {
+                              const newSelection = selectedCategories.includes(category.id)
+                                ? selectedCategories.filter(id => id !== category.id)
+                                : [...selectedCategories, category.id];
+                              setSelectedCategories(newSelection);
+                            }}
+                          >
+                            <Checkbox checked={selectedCategories.includes(category.id)} />
+                            <Label className="cursor-pointer">{category.name}</Label>
+                          </div>
+                        )) : <p className="text-sm text-gray-500">No hay categorías creadas.</p>}
+                      </div>
+                      <div className="flex items-center gap-2 mt-3">
+                        <Input
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          placeholder="Nombre de la nueva categoría"
+                        />
+                        <Button type="button" variant="outline" onClick={handleCreateCategory}>
+                          Crear
+                        </Button>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Files Section */}
@@ -327,18 +519,40 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                     </div>
                     <div className="space-y-4">
                       {files.map((file, index) => (
-                        <Card key={index} className="bg-gray-50 dark:bg-gray-900">
+                        <Card 
+                          key={index} 
+                          draggable
+                          onDragStart={() => { dragItem.current = index; setDraggingItem({type: 'file', index}); }}
+                          onDragEnter={() => (dragOverItem.current = index)}
+                          onDragEnd={handleFileSort}
+                          onDragOver={(e) => e.preventDefault()}
+                          className={`bg-gray-50 dark:bg-gray-900 cursor-grab transition-all 
+                            ${draggingItem?.type === 'file' && draggingItem?.index === index ? 'opacity-50 shadow-2xl' : 'opacity-100'}
+                            ${dragOverItem.current === index ? 'border-2 border-red-400' : ''}`}
+                        >
                           <CardContent className="pt-6 space-y-3">
-                            <div className="flex justify-between items-center">
-                              <span className="font-medium text-sm">Archivo {index + 1}</span>
-                              <Button
-                                onClick={() => removeFile(index)}
-                                size="sm"
-                                variant="ghost"
-                                className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50"
-                              >
-                                Eliminar
-                              </Button>
+                            <div className="flex justify-between items-start">
+                              <div className="flex items-center gap-2">
+                                <GripVertical className="w-5 h-5 text-gray-400" />
+                                <span className="font-medium text-sm">Archivo {index + 1}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  onClick={() => removeFile(index)}
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50"
+                                >
+                                  Eliminar
+                                </Button>
+                                <Button
+                                  onClick={() => navigate(`/content/${content.id}?preview=true`)}
+                                  size="sm"
+                                  variant="ghost"
+                                >
+                                  <Eye className="w-4 h-4 mr-2" /> Vista Previa
+                                </Button>
+                              </div>
                             </div>
                             <Select value={file.file_type} onValueChange={(value) => updateFile(index, 'file_type', value)}>
                               <SelectTrigger>
@@ -382,18 +596,40 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                     </div>
                     <div className="space-y-6">
                       {quizzes.map((quiz, quizIndex) => (
-                        <Card key={quizIndex} className="bg-blue-50 dark:bg-blue-900/20">
+                        <Card 
+                          key={quizIndex} 
+                          draggable
+                          onDragStart={() => { dragItem.current = quizIndex; setDraggingItem({type: 'quiz', index: quizIndex}); }}
+                          onDragEnter={() => (dragOverItem.current = quizIndex)}
+                          onDragEnd={handleQuizSort}
+                          onDragOver={(e) => e.preventDefault()}
+                          className={`bg-blue-50 dark:bg-blue-900/20 cursor-grab transition-all 
+                            ${draggingItem?.type === 'quiz' && draggingItem?.index === quizIndex ? 'opacity-50 shadow-2xl' : 'opacity-100'}
+                            ${dragOverItem.current === quizIndex ? 'border-2 border-red-400' : ''}`}
+                        >
                           <CardContent className="pt-6 space-y-4">
-                            <div className="flex justify-between items-center">
-                              <span className="font-semibold">Cuestionario {quizIndex + 1}</span>
-                              <Button
-                                onClick={() => removeQuiz(quizIndex)}
-                                size="sm"
-                                variant="ghost"
-                                className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50"
-                              >
-                                Eliminar
-                              </Button>
+                            <div className="flex justify-between items-start">
+                              <div className="flex items-center gap-2">
+                                <GripVertical className="w-5 h-5 text-gray-400" />
+                                <span className="font-semibold">Cuestionario {quizIndex + 1}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  onClick={() => removeQuiz(quizIndex)}
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50"
+                                >
+                                  Eliminar
+                                </Button>
+                                <Button
+                                  onClick={() => navigate(`/content/${content.id}?preview=true`)}
+                                  size="sm"
+                                  variant="ghost"
+                                >
+                                  <Eye className="w-4 h-4 mr-2" /> Vista Previa
+                                </Button>
+                              </div>
                             </div>
                             <Input
                               value={quiz.title}
@@ -505,7 +741,6 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                 </div>
               </DialogContent>
             </Dialog>
-
             <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
               <DialogTrigger asChild>
                 <Button data-testid="assign-content-button" variant="outline">
@@ -516,12 +751,26 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                 <DialogHeader>
                   <DialogTitle>Asignar Contenido</DialogTitle>
                 </DialogHeader>
+                <div className="flex items-center gap-4">
+                  <Label>Filtrar por categoría:</Label>
+                  <Select value={assignCategoryFilter} onValueChange={setAssignCategoryFilter}>
+                    <SelectTrigger className="w-[250px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las categorías</SelectItem>
+                      {categories.map(category => (
+                        <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-6 mt-4">
                   <div>
                     <Label className="text-base font-semibold mb-3 block">Selecciona Contenido</Label>
                     <div className="space-y-2 max-h-48 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
-                      {contents.map((content) => (
-                        <div key={content.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
+                      {filteredContentsForAssignment.map((content) => (
+                        <div key={content.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
                           <input
                             type="radio"
                             id={`content-${content.id}`}
@@ -554,7 +803,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                       <Label className="text-base font-semibold mb-3 block">Selecciona Representantes</Label>
                       <div className="space-y-2 max-h-64 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
                         {representatives.map((rep) => (
-                          <div key={rep.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
+                          <div key={rep.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
                             <Checkbox
                               id={`rep-${rep.id}`}
                               checked={selectedUsers.includes(rep.id)}
@@ -590,49 +839,142 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
             </Dialog>
           </div>
         </div>
+      </div>
 
-        <Card className="bg-white dark:bg-gray-800/50">
-          <CardHeader>
-            <CardTitle>Contenidos Creados ({contents.length})</CardTitle>
-          </CardHeader>
- <CardContent>
-            {contents.length === 0 ? (
-              <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay contenidos creados aún</p>
- ) : (
- <div className="space-y-4">
- {contents.map((content) => (
- <Card key={content.id} className="hover:shadow-lg transition-shadow bg-white dark:bg-gray-800">
- <CardContent className="pt-6">
- <div className="flex justify-between items-start">
- <div>
- <h3 className="font-bold text-lg mb-2">{content.title}</h3>
- {content.description && (
- <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{content.description}</p>
- )}
- </div>
- <Button onClick={() => handleDeleteContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
- <Trash2 className="w-4 h-4 mr-2" />
- Eliminar
- </Button>
- </div>
- <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="flex items-center gap-1">
-                          <FileText className="w-4 h-4" />
-                          {content.files.length} archivos
+      {/* Contenidos */}
+      <Card className="bg-white dark:bg-gray-800/50">
+        <CardHeader>
+          <CardTitle>Contenidos Creados ({filteredContents.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredContents.length === 0 ? (
+            <p className="text-gray-600 dark:text-gray-400 text-center py-8">
+              {contents.length > 0 ? 'No hay contenidos que coincidan con los filtros actuales.' : 'No hay contenidos creados aún.'}
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {filteredContents.map((content) => (
+                <Card key={content.id} className="hover:shadow-lg transition-shadow bg-white dark:bg-gray-800">
+                  <CardContent className="pt-6">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-lg mb-2">{content.title}</h3>
+                        {content.description && (
+                          <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{content.description}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                          content.status === 'published' 
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' 
+                            : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200'
+                        }`}>
+                          {content.status === 'published' ? 'Publicado' : 'Pendiente'}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <HelpCircle className="w-4 h-4" />
-                          {content.quizzes.length} cuestionarios
-                        </span>
- </div>
- </CardContent>
- </Card>
- ))}
- </div>
- )}
- </CardContent>
+                      </div>
+                    </div>
+                    {content.is_public && (
+                      <div className="mb-2">
+                        <span className="text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200 px-2 py-1 rounded-full">Público</span>
+                      </div>
+                    )}
+                    {getCategoryNames(content.category_ids).length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {getCategoryNames(content.category_ids).map(name => (
+                          <span key={name} className="text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 px-2 py-1 rounded-full">{name}</span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+                        <span className="flex items-center gap-1"><FileText className="w-4 h-4" />{content.files.length} archivos</span>
+                        <span className="flex items-center gap-1"><HelpCircle className="w-4 h-4" />{content.quizzes.length} cuestionarios</span>
+                      </div>
+                      <div className="flex items-center">
+                        {user.user_type !== 'formador' && content.status === 'pending' && (
+                          <>
+                            <Button onClick={() => handleApproveContent(content.id)} variant="ghost" size="sm" className="text-green-600 hover:text-green-700"><Check className="w-4 h-4 mr-2" /> Aprobar</Button>
+                            <Button onClick={() => handleRejectContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700"><X className="w-4 h-4 mr-2" /> Rechazar</Button>
+                          </>
+                        )}
+                        <Button onClick={() => navigate(`/content/${content.id}?preview=true`)} variant="ghost" size="sm">
+                          <Eye className="w-4 h-4 mr-2" />
+                          Vista Previa
+                        </Button>
+                        <Button onClick={() => handleDeleteContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Eliminar
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
       </Card>
-    </>
+
+      {/* Gestión de Categorías */}
+      <Card className="bg-white dark:bg-gray-800/50 mt-0"> {/* Quitamos margen extra arriba */}
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Tag className="w-5 h-5" />
+            Gestión de Categorías ({categories.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {categories.length > 0 ? (
+            <div className="space-y-2">
+              {categories.map(category => (
+                <div key={category.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <span className="font-medium">{category.name}</span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setEditCategory(category)}>
+                      <Edit className="w-4 h-4 mr-2" /> Editar
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 dark:hover:bg-red-900/50" onClick={() => setDeleteCategory(category)}>
+                      <Trash2 className="w-4 h-4 mr-2" /> Eliminar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay categorías creadas.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Diálogos de edición y borrado de categoría */}
+      <Dialog open={!!editCategory} onOpenChange={() => setEditCategory(null)}>
+        <DialogContent className="bg-white dark:bg-gray-900">
+          <DialogHeader>
+            <DialogTitle>Editar Categoría</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Label htmlFor="edit-category-name">Nombre de la categoría</Label>
+            <Input id="edit-category-name" value={editCategory?.name || ''} onChange={(e) => setEditCategory({...editCategory, name: e.target.value})} />
+          </div>
+          <Button onClick={handleUpdateCategory} className="w-full">Guardar Cambios</Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteCategory} onOpenChange={() => setDeleteCategory(null)}>
+        <DialogContent className="bg-white dark:bg-gray-900">
+          <DialogHeader>
+            <DialogTitle>Confirmar Eliminación</DialogTitle>
+          </DialogHeader>
+          <p>
+            ¿Estás seguro de que quieres eliminar la categoría "<strong>{deleteCategory?.name}</strong>"? Esta acción no se puede deshacer.
+          </p>
+          <div className="flex justify-end gap-4 mt-4">
+            <Button variant="ghost" onClick={() => setDeleteCategory(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDeleteCategory}>Eliminar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 
   if (!showHeader) {
@@ -640,38 +982,11 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
-            <div>
-              <h1 className="text-xl font-bold">Plataforma Formativa</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{roleNames[user.user_type] || 'Usuario'}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <ThemeToggleButton />
-            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-full">
-              <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-              <span className="text-sm font-medium">{user.name}</span>
-            </div>
-            <Button
-              data-testid="logout-button"
-              onClick={onLogout}
-              variant="ghost"
-              size="sm"
-              className="hover:bg-red-50 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Cerrar Sesión
-            </Button>
-          </div>
-        </div>
-      </header>
-      <main className="container mx-auto px-6 py-8">
-        {dashboardContent}
-      </main>
-    </div>
+    <DashboardLayout
+      user={user}
+      onLogout={onLogout}
+    >
+      {dashboardContent}
+    </DashboardLayout>
   );
 }
