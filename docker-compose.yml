@@ -7,7 +7,8 @@ services:
       - mongo_data:/data/db
 
   backend:
-    image: iireenees012/ritsi-backend:1.1
+    image: iireenees012/ritsi-backend:1.0
+    platform: linux/amd64
     env_file:
       - .env
     environment:
@@ -29,7 +30,7 @@ services:
 
   # 🔴 SERVICIO DE SCRIPTS
   scripts:
-    image: iireenees012/ritsi-backend:1.1
+    image: iireenees012/ritsi-backend:1.0
     env_file:
       - .env
     environment:
