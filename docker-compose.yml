@@ -1,0 +1,61 @@
+version: "3.9"
+
+services:
+    mongo:
+      image: mongo:6
+      container_name: ritsi-mongo
+      restart: unless-stopped
+      ports:
+        - "27017:27017"
+      volumes:
+        - mongo_data:/data/db
+
+    backend:
+      build:
+        context: ./backend
+        dockerfile: Dockerfile
+      container_name: ritsi-backend
+      restart: unless-stopped
+      depends_on:
+        - mongo
+      environment:
+        MONGO_URL: mongodb://mongo:27017
+        DB_NAME: plataforma_formativa_ritsi
+        SECRET_KEY: "cambia_esta_clave"
+      ports:
+        - "8000:8000"
+
+    frontend:
+      build:
+        context: ./frontend
+        dockerfile: Dockerfile
+      container_name: ritsi-frontend
+      restart: unless-stopped
+      depends_on:
+        - backend
+      environment:
+        REACT_APP_BACKEND_URL: http://localhost:8000
+      ports:
+        - "3000:3000"
+      stdin_open: true
+      tty: true
+
+    scripts:
+      build:
+        context: ./backend
+        dockerfile: Dockerfile
+      container_name: ritsi-scripts
+      depends_on:
+        - mongo
+      environment:
+        MONGO_URL: mongodb://mongo:27017
+        DB_NAME: plataforma_formativa_ritsi
+        SECRET_KEY: "cambia_esta_clave"
+        PYTHONPATH: /app
+      volumes:
+        - ./backend:/app
+      working_dir: /app
+
+
+volumes:
+    mongo_data:
