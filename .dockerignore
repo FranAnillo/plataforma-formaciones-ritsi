@@ -1,0 +1,11 @@
+node_modules
+frontend/node_modules
+build
+dist
+__pycache__
+*.pyc
+.env
+.env.local
+.vscode
+.idea
+.venv
