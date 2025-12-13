@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Users, Building2, GraduationCap, FileText, Trash2, Eye, MoreVertical, Upload, Download, Clock, Globe, Shield, UserX, ClipboardList, Plus, ArrowUp, ArrowDown } from 'lucide-react';
+import { LogOut, User, Users, Building2, GraduationCap, FileText, Trash2, Eye, MoreVertical, Upload, Download, Clock, Globe, Shield, UserX, ClipboardList, Plus, ArrowUp, ArrowDown, Search } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -7,6 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { Textarea } from '../components/ui/textarea';
 import { Switch } from '../components/ui/switch';
 import { Checkbox } from '../components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -17,6 +18,8 @@ import { roleNames } from '../utils/roles';
 import { api, fetchAllData } from '../services/api';
 import DashboardLayout from '../components/DashboardLayout';
 import LoadingSpinner from '../components/LoadingSpinner';
+
+const ZONES = ['I', 'II', 'III', 'IV', 'V'];
 
 export default function AdminDashboard({ user, onLogout }) {
   const [stats, setStats] = useState({
@@ -50,6 +53,18 @@ export default function AdminDashboard({ user, onLogout }) {
   const [assignMembersDialogOpen, setAssignMembersDialogOpen] = useState(null);
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  // University Management State
+  const [universitySearchQuery, setUniversitySearchQuery] = useState('');
+  const [universityDialogOpen, setUniversityDialogOpen] = useState(false);
+  const [editingUniversity, setEditingUniversity] = useState(null);
+  const [universityName, setUniversityName] = useState('');
+  const [universitySort, setUniversitySort] = useState({ key: 'zone', direction: 'asc' });
+  // Zone Management State
+  const [zoneAssignDialogOpen, setZoneAssignDialogOpen] = useState(null); // Will hold the zone string
+  const [selectedContentForZone, setSelectedContentForZone] = useState('');
+  const [universityCurrentPage, setUniversityCurrentPage] = useState(1);
+  const universitiesPerPage = 10;
+  const [universityZone, setUniversityZone] = useState('');
   const [commissionSort, setCommissionSort] = useState({ key: 'name', direction: 'asc' });
   const [commissionCurrentPage, setCommissionCurrentPage] = useState(1);
   const commissionsPerPage = 5;
@@ -70,7 +85,11 @@ export default function AdminDashboard({ user, onLogout }) {
 
   useEffect(() => {
     setCommissionCurrentPage(1);
-  }, [commissionSearchQuery]);
+  }, [commissionSearchQuery, commissionSort]);
+
+  useEffect(() => {
+    setUniversityCurrentPage(1);
+  }, [universitySearchQuery, universitySort]);
 
   useEffect(() => {
     if (activeTab !== 'content') {
@@ -306,6 +325,82 @@ export default function AdminDashboard({ user, onLogout }) {
     });
   };
 
+  const handleUniversitySort = (key) => {
+    setUniversitySort(prevSort => {
+      if (prevSort.key === key) {
+        return { key, direction: prevSort.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
+  const handleOpenZoneAssignDialog = (zone) => {
+    setSelectedContentForZone('');
+    setZoneAssignDialogOpen(zone);
+  };
+
+  const handleAssignToZone = async () => {
+    if (!selectedContentForZone || !zoneAssignDialogOpen) return;
+    try {
+      const response = await api.post('/assignments/zone', { zone: zoneAssignDialogOpen, content_id: selectedContentForZone });
+      toast.success(response.data.message || 'Contenido asignado a la zona.');
+      setZoneAssignDialogOpen(null);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al asignar a la zona.');
+    }
+  };
+
+  const handleOpenUniversityDialog = (university = null) => {
+    setEditingUniversity(university);
+    setUniversityName(university ? university.name : '');
+    setUniversityZone(university ? university.zone || '' : '');
+    setUniversityDialogOpen(true);
+  };
+
+  const handleSaveUniversity = async () => {
+    if (!universityName.trim()) {
+      toast.error('El nombre de la universidad es obligatorio.');
+      return;
+    }
+    const url = editingUniversity
+      ? `/universities/${editingUniversity.id}`
+      : '/universities';
+    const method = editingUniversity ? 'put' : 'post';
+    const data = {
+      name: universityName,
+      zone: universityZone === '__NONE__' ? null : universityZone,
+    };
+
+    try {
+      await api[method](url, data);
+      toast.success(`Universidad ${editingUniversity ? 'actualizada' : 'creada'} exitosamente.`);
+      setUniversityDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al guardar la universidad.');
+    }
+  };
+
+  const handleUniversityStatusChange = async (universityId, isActive) => {
+    try {
+      await api.put(`/universities/${universityId}/status`, { is_active: isActive });
+      toast.success(`Universidad ${isActive ? 'activada' : 'desactivada'}`);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al cambiar el estado.');
+    }
+  };
+
+  const handleDeleteUniversity = async (universityId) => {
+    try {
+      await api.delete(`/universities/${universityId}`);
+      toast.success('Universidad eliminada exitosamente.');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al eliminar la universidad.');
+    }
+  };
+
   const filteredUsers = users.filter(u => 
     (filterRole === 'all' || u.user_type === filterRole) &&
     (filterStatus === 'all' || u.is_active === (filterStatus === 'active')) &&
@@ -340,6 +435,30 @@ export default function AdminDashboard({ user, onLogout }) {
   const currentCommissions = filteredCommissions.slice(indexOfFirstCommission, indexOfLastCommission);
   const totalCommissionPages = Math.ceil(filteredCommissions.length / commissionsPerPage);
 
+  const sortedUniversities = universities
+    .filter(u => u.name.toLowerCase().includes(universitySearchQuery.toLowerCase()))
+    .sort((a, b) => {
+      const key = universitySort.key;
+      const direction = universitySort.direction === 'asc' ? 1 : -1;
+      const zoneOrder = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5 };
+
+      let valA = key === 'name' ? a.name.toLowerCase() : (a.zone ? zoneOrder[a.zone] : 99);
+      let valB = key === 'name' ? b.name.toLowerCase() : (b.zone ? zoneOrder[b.zone] : 99);
+
+      if (valA < valB) return -1 * direction;
+      if (valA > valB) return 1 * direction;
+      
+      // Secondary sort by name if zones are equal
+      if (key === 'zone') {
+        return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+      }
+      return 0;
+    });
+  const indexOfLastUniversity = universityCurrentPage * universitiesPerPage;
+  const indexOfFirstUniversity = indexOfLastUniversity - universitiesPerPage;
+  const currentUniversities = sortedUniversities.slice(indexOfFirstUniversity, indexOfLastUniversity);
+  const totalUniversityPages = Math.ceil(sortedUniversities.length / universitiesPerPage);
+
   const coordinatorCandidates = users.filter(u => u.user_type === 'coordinador_tematico' && u.is_active);
   const getUserName = (userId) => users.find(u => u.id === userId)?.name || 'Sin asignar';
 
@@ -366,6 +485,8 @@ export default function AdminDashboard({ user, onLogout }) {
             <TabsTrigger value="stats">Estadísticas</TabsTrigger>
             <TabsTrigger value="users">Gestión de Usuarios</TabsTrigger>
             <TabsTrigger value="content">Gestión de Contenidos</TabsTrigger>
+            <TabsTrigger value="zones">Gestión de Zonas</TabsTrigger>
+            <TabsTrigger value="universities">Universidades</TabsTrigger>
             <TabsTrigger value="commissions">Comisiones</TabsTrigger>
             <TabsTrigger value="activity">Registro de Actividad</TabsTrigger>
           </TabsList>
@@ -381,7 +502,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <p className="text-red-100">Usuarios Totales</p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform">
+              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => setActiveTab('universities')}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <Building2 className="w-8 h-8 opacity-80" />
@@ -593,6 +714,123 @@ export default function AdminDashboard({ user, onLogout }) {
           <TabsContent value="content" className="mt-6">
             <EscuelaFormacionDashboard user={user} onLogout={onLogout} showHeader={false} initialFilter={initialContentFilter} />
           </TabsContent>
+          <TabsContent value="zones" className="mt-6">
+            <Card className="bg-white dark:bg-gray-800/50">
+              <CardHeader>
+                <CardTitle>Gestión por Zonas</CardTitle>
+                <CardDescription>Asigna formaciones a todas las universidades de una zona específica.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {ZONES.map(zone => {
+                  const unisInZone = universities.filter(u => u.zone === zone && u.is_active);
+                  const repsInZone = users.filter(u => unisInZone.some(uni => uni.id === u.university_id));
+                  return (
+                    <Card key={zone} className="flex flex-col">
+                      <CardHeader>
+                        <CardTitle>Zona {zone}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="flex-grow">
+                        <div className="space-y-2 text-sm text-muted-foreground">
+                          <p><Building2 className="inline w-4 h-4 mr-2" />{unisInZone.length} Universidades</p>
+                          <p><Users className="inline w-4 h-4 mr-2" />{repsInZone.length} Representantes</p>
+                        </div>
+                      </CardContent>
+                      <div className="p-6 pt-0">
+                        <Button className="w-full" onClick={() => handleOpenZoneAssignDialog(zone)}>
+                          <Plus className="w-4 h-4 mr-2" /> Recomendar Formación
+                        </Button>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="universities" className="mt-6">
+            <Card className="bg-white dark:bg-gray-800/50">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Gestión de Universidades</CardTitle>
+                  <Button onClick={() => handleOpenUniversityDialog()}>
+                    <Plus className="w-4 h-4 mr-2" /> Crear Universidad
+                  </Button>
+                </div>
+                <CardDescription>Crea, edita y elimina las universidades de la plataforma.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4">
+                  <Input
+                    placeholder="Buscar universidad por nombre..."
+                    value={universitySearchQuery}
+                    onChange={(e) => setUniversitySearchQuery(e.target.value)}
+                    className="max-w-sm"
+                  />
+                </div>
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => handleUniversitySort('name')}>
+                          Universidad {universitySort.key === 'name' && (universitySort.direction === 'asc' ? <ArrowUp className="inline w-4 h-4 ml-1" /> : <ArrowDown className="inline w-4 h-4 ml-1" />)}
+                        </TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => handleUniversitySort('zone')}>
+                          Zona {universitySort.key === 'zone' && (universitySort.direction === 'asc' ? <ArrowUp className="inline w-4 h-4 ml-1" /> : <ArrowDown className="inline w-4 h-4 ml-1" />)}
+                        </TableHead>
+                        <TableHead>Nº Representantes</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {currentUniversities.map(uni => (
+                        <TableRow key={uni.id}>
+                          <TableCell className="font-medium">{uni.name}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={uni.is_active}
+                                onCheckedChange={(isChecked) => handleUniversityStatusChange(uni.id, isChecked)}
+                              />
+                              <span className={`text-xs font-medium ${uni.is_active ? 'text-green-600' : 'text-red-600'}`}>{uni.is_active ? 'Activa' : 'Inactiva'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>{uni.zone ? `Zona ${uni.zone}`: '-'}</TableCell>
+                          <TableCell>{users.filter(u => u.university_id === uni.id).length}</TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0"><MoreVertical className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleOpenUniversityDialog(uni)}>Editar</DropdownMenuItem>
+                                <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteUniversity(uni.id)}>Eliminar</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="flex items-center justify-end space-x-2 py-4">
+                  <span className="text-sm text-muted-foreground">
+                    Página {universityCurrentPage} de {totalUniversityPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setUniversityCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={universityCurrentPage === 1}
+                  >
+                    Anterior
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setUniversityCurrentPage(prev => Math.min(prev + 1, totalUniversityPages))} disabled={universityCurrentPage === totalUniversityPages}>
+                    Siguiente
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
           <TabsContent value="commissions" className="mt-6">
             <Card className="bg-white dark:bg-gray-800/50">
               <CardHeader>
@@ -782,6 +1020,64 @@ export default function AdminDashboard({ user, onLogout }) {
               </div>
             </div>
             <Button onClick={handleSaveCommission} className="w-full">{editingCommission ? 'Guardar Cambios' : 'Crear Comisión'}</Button>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create/Edit University Dialog */}
+        <Dialog open={universityDialogOpen} onOpenChange={setUniversityDialogOpen}>
+          <DialogContent className="bg-white dark:bg-gray-900">
+            <DialogHeader>
+              <DialogTitle>{editingUniversity ? 'Editar' : 'Crear'} Universidad</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div>
+                <Label htmlFor="uni-name">Nombre de la Universidad</Label>
+                <Input id="uni-name" value={universityName} onChange={(e) => setUniversityName(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="uni-zone">Zona (Opcional)</Label>
+                <Select value={universityZone} onValueChange={setUniversityZone}>
+                  <SelectTrigger id="uni-zone">
+                    <SelectValue placeholder="Seleccionar zona" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__NONE__">Sin Zona</SelectItem>
+                    {ZONES.map(zone => (
+                      <SelectItem key={zone} value={zone}>Zona {zone}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={handleSaveUniversity} className="w-full">{editingUniversity ? 'Guardar Cambios' : 'Crear Universidad'}</Button>
+          </DialogContent>
+        </Dialog>
+
+        {/* Assign to Zone Dialog */}
+        <Dialog open={!!zoneAssignDialogOpen} onOpenChange={() => setZoneAssignDialogOpen(null)}>
+          <DialogContent className="bg-white dark:bg-gray-900">
+            <DialogHeader>
+              <DialogTitle>Asignar Formación a Zona {zoneAssignDialogOpen}</DialogTitle>
+              <CardDescription>
+                El contenido seleccionado se asignará a todos los representantes de las universidades activas en esta zona.
+              </CardDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div>
+                <Label htmlFor="zone-content-select">Seleccionar Contenido</Label>
+                <Select value={selectedContentForZone} onValueChange={setSelectedContentForZone}>
+                  <SelectTrigger id="zone-content-select">
+                    <SelectValue placeholder="Elige una formación..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contents.filter(c => c.status === 'published').map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={handleAssignToZone} className="w-full">Asignar a Zona</Button>
           </DialogContent>
         </Dialog>
 

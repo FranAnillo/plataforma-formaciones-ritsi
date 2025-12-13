@@ -74,7 +74,8 @@ class University(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
-    description: Optional[str] = None
+    is_active: bool = True
+    zone: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class Category(BaseModel):
@@ -162,9 +163,12 @@ class RegisterRequest(BaseModel):
     name: str
     university_id: str
 
+class UpdateUniversityStatusRequest(BaseModel):
+    is_active: bool
+
 class UniversityCreate(BaseModel):
     name: str
-    description: Optional[str] = None
+    zone: Optional[str] = None
 
 class CategoryCreate(BaseModel):
     name: str
@@ -215,6 +219,10 @@ class ThematicCommissionCreate(BaseModel):
 
 class AssignUsersToCommissionRequest(BaseModel):
     user_ids: List[str]
+
+class AssignContentToZoneRequest(BaseModel):
+    content_id: str
+    zone: str
 
 class UserImport(BaseModel):
     email: EmailStr
@@ -547,12 +555,53 @@ async def create_university(request: UniversityCreate, current_user: User = Depe
             detail="No tienes permisos para crear universidades"
         )
     
-    university = University(name=request.name, description=request.description)
+    university = University(name=request.name, zone=request.zone)
     university_dict = university.model_dump()
     university_dict["created_at"] = university_dict["created_at"].isoformat()
     await db.universities.insert_one(university_dict)
     
     return university
+
+@api_router.put("/universities/{university_id}", response_model=University)
+async def update_university(university_id: str, request: UniversityCreate, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para editar universidades"
+        )
+
+    update_data = request.model_dump(exclude_unset=True)
+    update_result = await db.universities.update_one(
+        {"id": university_id},
+        {"$set": update_data}
+    )
+
+    if update_result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Universidad no encontrada")
+
+    updated_university = await db.universities.find_one({"id": university_id}, {"_id": 0})
+    return University(**updated_university)
+
+@api_router.put("/universities/{university_id}/status", response_model=University)
+async def update_university_status(university_id: str, request: UpdateUniversityStatusRequest, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != UserType.ADMIN:
+        raise HTTPException(status_code=403, detail="No tienes permisos para cambiar el estado de una universidad")
+
+    await db.universities.update_one({"id": university_id}, {"$set": {"is_active": request.is_active}})
+    updated_university = await db.universities.find_one({"id": university_id}, {"_id": 0})
+    return University(**updated_university)
+
+@api_router.delete("/universities/{university_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_university(university_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != UserType.ADMIN:
+        raise HTTPException(status_code=403, detail="No tienes permisos para eliminar universidades")
+
+    # Prevent deletion if users are associated with this university
+    user_count = await db.users.count_documents({"university_id": university_id})
+    if user_count > 0:
+        raise HTTPException(status_code=400, detail=f"No se puede eliminar la universidad porque tiene {user_count} usuario(s) asociado(s).")
+
+    await db.universities.delete_one({"id": university_id})
 
 @api_router.get("/thematic-commissions", response_model=List[ThematicCommission])
 async def get_thematic_commissions(current_user: User = Depends(get_current_user)):
@@ -939,6 +988,38 @@ async def assign_content(request: AssignContentRequest, current_user: User = Dep
     await db.content_assignments.insert_one(assignment_dict)
     
     return assignment
+
+@api_router.post("/assignments/zone")
+async def assign_content_to_zone(request: AssignContentToZoneRequest, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para asignar contenido por zona")
+
+    # 1. Find all universities in the given zone
+    universities_in_zone = await db.universities.find({"zone": request.zone, "is_active": True}, {"id": 1}).to_list(None)
+    if not universities_in_zone:
+        raise HTTPException(status_code=404, detail=f"No se encontraron universidades activas en la Zona {request.zone}")
+    
+    university_ids = [uni['id'] for uni in universities_in_zone]
+
+    # 2. Find all representatives in those universities
+    users_in_zone = await db.users.find(
+        {"university_id": {"$in": university_ids}, "user_type": UserType.REPRESENTANTE, "is_active": True},
+        {"id": 1}
+    ).to_list(None)
+    
+    user_ids_to_assign = [user['id'] for user in users_in_zone]
+
+    if not user_ids_to_assign:
+        return {"message": "No hay representantes activos en esta zona para asignar."}
+
+    # 3. Find or create an assignment and add users
+    await db.content_assignments.update_one(
+        {"content_id": request.content_id},
+        {"$addToSet": {"assigned_to_user_ids": {"$each": user_ids_to_assign}}, "$setOnInsert": {"assigned_by": current_user.id, "created_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True
+    )
+
+    return {"message": f"Contenido asignado a {len(user_ids_to_assign)} representantes de la Zona {request.zone}."}
 
 @api_router.get("/assignments", response_model=List[ContentAssignment])
 async def get_all_assignments(current_user: User = Depends(get_current_user)):
