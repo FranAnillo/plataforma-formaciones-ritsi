@@ -220,6 +220,10 @@ class ThematicCommissionCreate(BaseModel):
 class AssignUsersToCommissionRequest(BaseModel):
     user_ids: List[str]
 
+class AssignContentToZoneRequest(BaseModel):
+    content_id: str
+    zone: str
+
 class UserImport(BaseModel):
     email: EmailStr
     name: str
@@ -984,6 +988,38 @@ async def assign_content(request: AssignContentRequest, current_user: User = Dep
     await db.content_assignments.insert_one(assignment_dict)
     
     return assignment
+
+@api_router.post("/assignments/zone")
+async def assign_content_to_zone(request: AssignContentToZoneRequest, current_user: User = Depends(get_current_user)):
+    if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para asignar contenido por zona")
+
+    # 1. Find all universities in the given zone
+    universities_in_zone = await db.universities.find({"zone": request.zone, "is_active": True}, {"id": 1}).to_list(None)
+    if not universities_in_zone:
+        raise HTTPException(status_code=404, detail=f"No se encontraron universidades activas en la Zona {request.zone}")
+    
+    university_ids = [uni['id'] for uni in universities_in_zone]
+
+    # 2. Find all representatives in those universities
+    users_in_zone = await db.users.find(
+        {"university_id": {"$in": university_ids}, "user_type": UserType.REPRESENTANTE, "is_active": True},
+        {"id": 1}
+    ).to_list(None)
+    
+    user_ids_to_assign = [user['id'] for user in users_in_zone]
+
+    if not user_ids_to_assign:
+        return {"message": "No hay representantes activos en esta zona para asignar."}
+
+    # 3. Find or create an assignment and add users
+    await db.content_assignments.update_one(
+        {"content_id": request.content_id},
+        {"$addToSet": {"assigned_to_user_ids": {"$each": user_ids_to_assign}}, "$setOnInsert": {"assigned_by": current_user.id, "created_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True
+    )
+
+    return {"message": f"Contenido asignado a {len(user_ids_to_assign)} representantes de la Zona {request.zone}."}
 
 @api_router.get("/assignments", response_model=List[ContentAssignment])
 async def get_all_assignments(current_user: User = Depends(get_current_user)):
