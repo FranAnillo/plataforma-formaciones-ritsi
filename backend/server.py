@@ -27,7 +27,8 @@ app = FastAPI()
 origins = [
     "http://localhost:3000",    # React / Next.js local
     "http://localhost:8080",    # Vue / otro local
-    "https://tu-dominio-frontend.com", # Tu frontend en producción
+    "https://tu-dominio-frontend.com",
+    "http://150.214.142.23:3000" # Tu frontend en producción
     # "*",                      # Descomenta esto solo si quieres permitir TODO (inseguro en prod)
 ]
 
@@ -365,8 +366,8 @@ async def get_session(session_id: str):
             key="session_token",
             value=session_token,
             httponly=True,
-            secure=True,
-            samesite="none",
+            secure=False,
+            samesite="lax",
             max_age=7*24*60*60,
             path="/"
         )
