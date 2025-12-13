@@ -7,7 +7,7 @@ services:
       - mongo_data:/data/db
 
   backend:
-    image: iireenees012/ritsi-backend:1.0
+    image: iireenees012/ritsi-backend:1.1
     env_file:
       - .env
     environment:
@@ -26,6 +26,20 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+
+  # 🔴 SERVICIO DE SCRIPTS
+  scripts:
+    image: iireenees012/ritsi-backend:1.1
+    env_file:
+      - .env
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: plataforma_formativa_ritsi
+      PYTHONPATH: /app
+    depends_on:
+      - mongo
+    working_dir: /app
+    restart: "no"
 
 volumes:
   mongo_data:
