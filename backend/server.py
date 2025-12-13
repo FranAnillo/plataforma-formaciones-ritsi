@@ -646,6 +646,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring and load balancers"""
+    try:
+        # Check database connection
+        await db.command('ping')
+        return {
+            "status": "healthy",
+            "database": "connected"
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service unavailable"
+        )
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
