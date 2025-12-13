@@ -59,6 +59,9 @@ export default function AdminDashboard({ user, onLogout }) {
   const [editingUniversity, setEditingUniversity] = useState(null);
   const [universityName, setUniversityName] = useState('');
   const [universitySort, setUniversitySort] = useState({ key: 'zone', direction: 'asc' });
+  // Zone Management State
+  const [zoneAssignDialogOpen, setZoneAssignDialogOpen] = useState(null); // Will hold the zone string
+  const [selectedContentForZone, setSelectedContentForZone] = useState('');
   const [universityCurrentPage, setUniversityCurrentPage] = useState(1);
   const universitiesPerPage = 10;
   const [universityZone, setUniversityZone] = useState('');
@@ -331,6 +334,22 @@ export default function AdminDashboard({ user, onLogout }) {
     });
   };
 
+  const handleOpenZoneAssignDialog = (zone) => {
+    setSelectedContentForZone('');
+    setZoneAssignDialogOpen(zone);
+  };
+
+  const handleAssignToZone = async () => {
+    if (!selectedContentForZone || !zoneAssignDialogOpen) return;
+    try {
+      const response = await api.post('/assignments/zone', { zone: zoneAssignDialogOpen, content_id: selectedContentForZone });
+      toast.success(response.data.message || 'Contenido asignado a la zona.');
+      setZoneAssignDialogOpen(null);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al asignar a la zona.');
+    }
+  };
+
   const handleOpenUniversityDialog = (university = null) => {
     setEditingUniversity(university);
     setUniversityName(university ? university.name : '');
@@ -466,6 +485,7 @@ export default function AdminDashboard({ user, onLogout }) {
             <TabsTrigger value="stats">Estadísticas</TabsTrigger>
             <TabsTrigger value="users">Gestión de Usuarios</TabsTrigger>
             <TabsTrigger value="content">Gestión de Contenidos</TabsTrigger>
+            <TabsTrigger value="zones">Gestión de Zonas</TabsTrigger>
             <TabsTrigger value="universities">Universidades</TabsTrigger>
             <TabsTrigger value="commissions">Comisiones</TabsTrigger>
             <TabsTrigger value="activity">Registro de Actividad</TabsTrigger>
@@ -693,6 +713,38 @@ export default function AdminDashboard({ user, onLogout }) {
 
           <TabsContent value="content" className="mt-6">
             <EscuelaFormacionDashboard user={user} onLogout={onLogout} showHeader={false} initialFilter={initialContentFilter} />
+          </TabsContent>
+          <TabsContent value="zones" className="mt-6">
+            <Card className="bg-white dark:bg-gray-800/50">
+              <CardHeader>
+                <CardTitle>Gestión por Zonas</CardTitle>
+                <CardDescription>Asigna formaciones a todas las universidades de una zona específica.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {ZONES.map(zone => {
+                  const unisInZone = universities.filter(u => u.zone === zone && u.is_active);
+                  const repsInZone = users.filter(u => unisInZone.some(uni => uni.id === u.university_id));
+                  return (
+                    <Card key={zone} className="flex flex-col">
+                      <CardHeader>
+                        <CardTitle>Zona {zone}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="flex-grow">
+                        <div className="space-y-2 text-sm text-muted-foreground">
+                          <p><Building2 className="inline w-4 h-4 mr-2" />{unisInZone.length} Universidades</p>
+                          <p><Users className="inline w-4 h-4 mr-2" />{repsInZone.length} Representantes</p>
+                        </div>
+                      </CardContent>
+                      <div className="p-6 pt-0">
+                        <Button className="w-full" onClick={() => handleOpenZoneAssignDialog(zone)}>
+                          <Plus className="w-4 h-4 mr-2" /> Recomendar Formación
+                        </Button>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </CardContent>
+            </Card>
           </TabsContent>
           <TabsContent value="universities" className="mt-6">
             <Card className="bg-white dark:bg-gray-800/50">
@@ -998,6 +1050,34 @@ export default function AdminDashboard({ user, onLogout }) {
               </div>
             </div>
             <Button onClick={handleSaveUniversity} className="w-full">{editingUniversity ? 'Guardar Cambios' : 'Crear Universidad'}</Button>
+          </DialogContent>
+        </Dialog>
+
+        {/* Assign to Zone Dialog */}
+        <Dialog open={!!zoneAssignDialogOpen} onOpenChange={() => setZoneAssignDialogOpen(null)}>
+          <DialogContent className="bg-white dark:bg-gray-900">
+            <DialogHeader>
+              <DialogTitle>Asignar Formación a Zona {zoneAssignDialogOpen}</DialogTitle>
+              <CardDescription>
+                El contenido seleccionado se asignará a todos los representantes de las universidades activas en esta zona.
+              </CardDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div>
+                <Label htmlFor="zone-content-select">Seleccionar Contenido</Label>
+                <Select value={selectedContentForZone} onValueChange={setSelectedContentForZone}>
+                  <SelectTrigger id="zone-content-select">
+                    <SelectValue placeholder="Elige una formación..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contents.filter(c => c.status === 'published').map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={handleAssignToZone} className="w-full">Asignar a Zona</Button>
           </DialogContent>
         </Dialog>
 
