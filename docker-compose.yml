@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: plataforma-formativa-db
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - plataforma-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: plataforma-formativa-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      MONGO_URL: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongodb:27017/
+      DB_NAME: ${DB_NAME:-plataforma_formativa}
+      EMERGENT_AUTH_URL: ${EMERGENT_AUTH_URL}
+      EMERGENT_APP_ID: ${EMERGENT_APP_ID}
+      EMERGENT_APP_SECRET: ${EMERGENT_APP_SECRET}
+    depends_on:
+      - mongodb
+    networks:
+      - plataforma-network
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: plataforma-formativa-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL:-http://localhost:8000}
+    depends_on:
+      - backend
+    networks:
+      - plataforma-network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  plataforma-network:
+    driver: bridge

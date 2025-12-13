@@ -4,13 +4,11 @@ import { BookOpen, LogOut, User, TrendingUp } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import axios from 'axios';
+import { contentService, progressService } from '../services/api';
 import { toast } from 'sonner';
 import logo from '../static/1710_Isotipo_Degradado.png';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const roleNames = {
   admin: 'Administrador',
@@ -32,12 +30,12 @@ export default function RepresentativeDashboard({ user, onLogout }) {
 
   const fetchData = async () => {
     try {
-      const [contentsRes, progressRes] = await Promise.all([
-        axios.get(`${API}/content`),
-        axios.get(`${API}/progress`)
+      const [contentsData, progressData] = await Promise.all([
+        contentService.getAll(),
+        progressService.getAll()
       ]);
-      setContents(contentsRes.data);
-      setProgress(progressRes.data);
+      setContents(contentsData);
+      setProgress(progressData);
     } catch (error) {
       toast.error('Error al cargar datos');
     } finally {
@@ -62,14 +60,7 @@ export default function RepresentativeDashboard({ user, onLogout }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
-        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

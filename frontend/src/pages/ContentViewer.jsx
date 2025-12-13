@@ -7,12 +7,10 @@ import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
 import { Progress } from '../components/ui/progress';
-import axios from 'axios';
+import { contentService, progressService } from '../services/api';
 import { toast } from 'sonner';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function ContentViewer({ user }) {
   const { contentId } = useParams();
@@ -32,25 +30,25 @@ export default function ContentViewer({ user }) {
 
   const fetchData = async () => {
     try {
-      const [contentRes, progressRes] = await Promise.all([
-        axios.get(`${API}/content/${contentId}`),
-        axios.get(`${API}/progress`)
+      const [contentData, progressData] = await Promise.all([
+        contentService.getById(contentId),
+        progressService.getAll()
       ]);
       
-      setContent(contentRes.data);
-      const prog = progressRes.data.find(p => p.content_id === contentId);
+      setContent(contentData);
+      const prog = progressData.find(p => p.content_id === contentId);
       setProgress(prog || null);
       
       // Start with first incomplete file or quiz
       if (prog) {
-        const incompleteFileIndex = contentRes.data.files.findIndex(
+        const incompleteFileIndex = contentData.files.findIndex(
           file => !prog.files_completed?.includes(file.id)
         );
         if (incompleteFileIndex !== -1) {
           setCurrentFileIndex(incompleteFileIndex);
           setCurrentSection('files');
-        } else if (contentRes.data.quizzes.length > 0) {
-          const incompleteQuizIndex = contentRes.data.quizzes.findIndex(
+        } else if (contentData.quizzes.length > 0) {
+          const incompleteQuizIndex = contentData.quizzes.findIndex(
             quiz => !prog.quizzes_completed?.[quiz.id]?.passed
           );
           if (incompleteQuizIndex !== -1) {
@@ -70,16 +68,13 @@ export default function ContentViewer({ user }) {
     const currentFile = content.files[currentFileIndex];
     
     try {
-      await axios.post(`${API}/progress/file-completed`, {
-        content_id: contentId,
-        file_id: currentFile.id
-      });
+      await progressService.markFileCompleted(contentId, currentFile.id);
       
       toast.success('¡Archivo marcado como completado!');
       
       // Refresh progress
-      const progressRes = await axios.get(`${API}/progress`);
-      const prog = progressRes.data.find(p => p.content_id === contentId);
+      const progressData = await progressService.getAll();
+      const prog = progressData.find(p => p.content_id === contentId);
       setProgress(prog);
       
       // Move to next file or quiz
@@ -106,18 +101,14 @@ export default function ContentViewer({ user }) {
     
     setSubmittingQuiz(true);
     try {
-      const response = await axios.post(`${API}/progress/submit-quiz`, {
-        content_id: contentId,
-        quiz_id: currentQuiz.id,
-        answers: quizAnswers
-      });
+      const response = await progressService.submitQuiz(contentId, currentQuiz.id, quizAnswers);
       
-      if (response.data.passed) {
-        toast.success(`¡Aprobado! Puntuación: ${response.data.score.toFixed(1)}%`);
+      if (response.passed) {
+        toast.success(`¡Aprobado! Puntuación: ${response.score.toFixed(1)}%`);
         
         // Refresh progress
-        const progressRes = await axios.get(`${API}/progress`);
-        const prog = progressRes.data.find(p => p.content_id === contentId);
+        const progressData = await progressService.getAll();
+        const prog = progressData.find(p => p.content_id === contentId);
         setProgress(prog);
         
         // Check if completed
@@ -135,7 +126,7 @@ export default function ContentViewer({ user }) {
         }
       } else {
         toast.error(
-          `No aprobado. Puntuación: ${response.data.score.toFixed(1)}%. Necesitas 70% para aprobar. Intento ${response.data.attempts}.`,
+          `No aprobado. Puntuación: ${response.score.toFixed(1)}%. Necesitas 70% para aprobar. Intento ${response.attempts}.`,
           { duration: 5000 }
         );
         setQuizAnswers({});
@@ -214,14 +205,7 @@ export default function ContentViewer({ user }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
-        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando contenido...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner message="Cargando contenido..." />;
   }
 
   if (!content) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
+import logo from '../static/1710_Isotipo_Degradado.png';
 import { BookOpen, LogOut, User, Plus, FileText, Video, Image as ImageIcon, HelpCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -9,13 +9,11 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
-import axios from 'axios';
+import { contentService, representativeService, assignmentService } from '../services/api';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const roleNames = {
   admin: 'Administrador',
@@ -50,12 +48,12 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
 
   const fetchData = async () => {
     try {
-      const [contentsRes, repsRes] = await Promise.all([
-        axios.get(`${API}/content`),
-        axios.get(`${API}/representatives`)
+      const [contentsData, repsData] = await Promise.all([
+        contentService.getAll(),
+        representativeService.getAll()
       ]);
-      setContents(contentsRes.data || []);
-      setRepresentatives(repsRes.data);
+      setContents(contentsData || []);
+      setRepresentatives(repsData);
     } catch (error) {
       toast.error('Error al cargar datos');
     } finally {
@@ -196,7 +194,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     }
 
     try {
-      await axios.post(`${API}/content`, {
+      await contentService.create({
         title,
         description,
         files,
@@ -231,7 +229,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
     }
 
     try {
-      await axios.post(`${API}/assignments`, {
+      await assignmentService.create({
         content_id: selectedContent,
         user_ids: assignToAll ? undefined : selectedUsers,
         assign_to_all_representatives: assignToAll
@@ -249,7 +247,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
 
   const handleDeleteContent = async (contentId) => {
     try {
-      await axios.delete(`${API}/content/${contentId}`);
+      await contentService.delete(contentId);
       toast.success('Contenido eliminado exitosamente');
 
       // Refresh data
@@ -263,14 +261,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
 
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
-        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   const dashboardContent = (

@@ -4,11 +4,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import axios from 'axios';
+import { authService, universityService } from '../services/api';
 import { toast } from 'sonner';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
 
 export default function Register({ user, onComplete }) {
   const [name, setName] = useState(user.name || '');
@@ -22,8 +19,8 @@ export default function Register({ user, onComplete }) {
 
   const fetchUniversities = async () => {
     try {
-      const response = await axios.get(`${API}/universities`);
-      setUniversities(response.data);
+      const data = await universityService.getAll();
+      setUniversities(data);
     } catch (error) {
       toast.error('Error al cargar universidades');
     }
@@ -39,7 +36,7 @@ export default function Register({ user, onComplete }) {
 
     setLoading(true);
     try {
-      await axios.post(`${API}/auth/register`, {
+      await authService.register({
         email: user.email,
         name,
         university_id: universityId

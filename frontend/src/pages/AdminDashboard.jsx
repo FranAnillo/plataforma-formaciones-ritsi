@@ -3,13 +3,11 @@ import { BookOpen, LogOut, User, Users, Building2, GraduationCap, FileText } fro
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import EscuelaFormacionDashboard from './EscuelaFormacionDashboard';
-import axios from 'axios';
+import { representativeService, universityService, contentService } from '../services/api';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
 import { toast } from 'sonner';
-import logo from '../static/1710_Isotipo_Degradado.png'; // Importar la imagen
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import logo from '../static/1710_Isotipo_Degradado.png';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const roleNames = {
   admin: 'Administrador',
@@ -34,16 +32,16 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const fetchStats = async () => {
     try {
-      const [repsRes, unisRes, contentsRes] = await Promise.all([
-        axios.get(`${API}/representatives`),
-        axios.get(`${API}/universities`),
-        axios.get(`${API}/content`)
+      const [repsData, unisData, contentsData] = await Promise.all([
+        representativeService.getAll(),
+        universityService.getAll(),
+        contentService.getAll()
       ]);
       
       setStats({
-        totalRepresentatives: repsRes.data.length,
-        totalUniversities: unisRes.data.length,
-        totalContents: contentsRes.data.length
+        totalRepresentatives: repsData.length,
+        totalUniversities: unisData.length,
+        totalContents: contentsData.length
       });
     } catch (error) {
       toast.error('Error al cargar estadísticas');
@@ -53,14 +51,7 @@ export default function AdminDashboard({ user, onLogout }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700">Cargando panel...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner message="Cargando panel..." />;
   }
 
   return (

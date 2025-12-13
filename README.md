@@ -34,13 +34,87 @@ Esta es la plataforma formativa de la **Reunión de Estudiantes de Ingenierías 
 
 **Backend**: FastAPI, MongoDB, Motor, Pydantic
 **Frontend**: React 19, React Router, Axios, Shadcn/UI, Tailwind CSS
+**Infraestructura**: Docker, Docker Compose
 
-## Inicialización
+## Configuración del Entorno
+
+### Variables de Entorno Requeridas
+
+**Backend** (`backend/.env`):
+```env
+MONGO_URL=mongodb://localhost:27017/
+DB_NAME=plataforma_formativa
+EMERGENT_AUTH_URL=https://auth.emergentworks.com
+EMERGENT_APP_ID=your_app_id
+EMERGENT_APP_SECRET=your_app_secret
+```
+
+**Frontend** (`frontend/.env`):
+```env
+REACT_APP_BACKEND_URL=http://localhost:8000
+```
+
+## Instalación y Ejecución
+
+### Opción 1: Docker Compose (Recomendado)
+
+```bash
+# Clonar el repositorio
+git clone https://github.com/FranAnillo/plataforma-formaciones-ritsi.git
+cd plataforma-formaciones-ritsi
+
+# Configurar variables de entorno
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+# Editar los archivos .env con tus credenciales
+
+# Iniciar todos los servicios
+docker-compose up -d
+
+# La aplicación estará disponible en:
+# - Frontend: http://localhost:3000
+# - Backend API: http://localhost:8000
+# - MongoDB: localhost:27017
+```
+
+### Opción 2: Desarrollo Local
+
+**Backend:**
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn server:app --reload --port 8000
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm start
+```
+
+## Inicialización de Datos
+
+### Crear Universidades de Ejemplo
 
 5 universidades de ejemplo están disponibles. Para agregar más:
 ```bash
-python3 /app/scripts/init_universities.py
+python3 scripts/init_universities.py
 ```
+
+### Crear Usuario Administrador
+
+```bash
+python3 scripts/create_admin.py admin@example.com "Admin Name"
+```
+
+### Crear Usuario con Rol Específico
+
+```bash
+python3 scripts/create_user.py user@example.com "User Name" <rol> [university_id]
+```
+
+Roles disponibles: `admin`, `escuela_formacion`, `junta_directiva`, `universidad`, `representante`
 
 # Diagrama del servicio:
 

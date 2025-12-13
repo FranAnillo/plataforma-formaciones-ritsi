@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import axios from 'axios';
+import { authService } from './services/api';
 import Landing from './pages/Landing';
 import Register from './pages/Register';
 import RepresentativeDashboard from './pages/RepresentativeDashboard';
@@ -9,13 +9,9 @@ import JuntaDashboard from './pages/JuntaDashboard';
 import EscuelaFormacionDashboard from './pages/EscuelaFormacionDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ContentViewer from './pages/ContentViewer';
+import LoadingSpinner from './components/LoadingSpinner';
 import { Toaster } from './components/ui/sonner';
 import '@/App.css';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-axios.defaults.withCredentials = true;
 
 function App() {
   const [user, setUser] = useState(null);
@@ -39,11 +35,11 @@ function App() {
 
     // Check existing session
     try {
-      const response = await axios.get(`${API}/auth/me`);
-      setUser(response.data);
+      const userData = await authService.getMe();
+      setUser(userData);
       
       // Check if needs registration
-      if (!response.data.university_id) {
+      if (!userData.university_id) {
         setNeedsRegistration(true);
       }
     } catch (error) {
@@ -55,15 +51,15 @@ function App() {
 
   const processSessionId = async (sessionId) => {
     try {
-      const response = await axios.get(`${API}/auth/session?session_id=${sessionId}`);
+      const response = await authService.processSession(sessionId);
       
-      if (response.data.needs_registration) {
+      if (response.needs_registration) {
         setNeedsRegistration(true);
       }
       
       // Get user data
-      const userResponse = await axios.get(`${API}/auth/me`);
-      setUser(userResponse.data);
+      const userData = await authService.getMe();
+      setUser(userData);
     } catch (error) {
       console.error('Error procesando sesión:', error);
     } finally {
@@ -73,7 +69,7 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      await axios.post(`${API}/auth/logout`);
+      await authService.logout();
       setUser(null);
       setNeedsRegistration(false);
     } catch (error) {
@@ -82,14 +78,7 @@ function App() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700">Cargando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
