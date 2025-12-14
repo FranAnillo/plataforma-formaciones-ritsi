@@ -1,29 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, LogOut, User, TrendingUp } from 'lucide-react';
+import { BookOpen, TrendingUp, Search } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
+import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import axios from 'axios';
+import { Checkbox } from '../components/ui/checkbox';
+import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import logo from '../static/1710_Isotipo_Degradado.png';
-import { ThemeToggleButton } from '../components/ThemeToggleButton';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const roleNames = {
-  admin: 'Administrador',
-  escuela_formacion: 'Escuela de Formación',
-  junta_directiva: 'Junta Directiva',
-  universidad: 'Universidad',
-  representante: 'Representante',
-};
+import { fetchAllData } from '../services/api';
+import DashboardLayout from '../components/DashboardLayout';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function RepresentativeDashboard({ user, onLogout }) {
   const [contents, setContents] = useState([]);
   const [progress, setProgress] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showOnlyPublic, setShowOnlyPublic] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,9 +26,9 @@ export default function RepresentativeDashboard({ user, onLogout }) {
 
   const fetchData = async () => {
     try {
-      const [contentsRes, progressRes] = await Promise.all([
-        axios.get(`${API}/content`),
-        axios.get(`${API}/progress`)
+      const [contentsRes, progressRes] = await fetchAllData([
+        '/content',
+        '/progress'
       ]);
       setContents(contentsRes.data);
       setProgress(progressRes.data);
@@ -61,66 +55,52 @@ export default function RepresentativeDashboard({ user, onLogout }) {
     return Math.round(((completedFiles + completedQuizzes) / totalItems) * 100);
   };
 
+  const filteredContents = contents.filter(content => {
+    const matchesPublicFilter = !showOnlyPublic || content.is_public;
+    const matchesSearch = content.title.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesPublicFilter && matchesSearch;
+  });
+
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
-        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
-      {/* Header */}
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
-            <div>
-              <h1 className="text-xl font-bold">Plataforma Formativa</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{roleNames[user.user_type] || 'Usuario'}</p>
-            </div>
+    <DashboardLayout user={user} onLogout={onLogout}>
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Mi Contenido Formativo</h2>
+            <p className="text-gray-600 dark:text-gray-400">Completa los contenidos y cuestionarios asignados</p>
           </div>
           <div className="flex items-center gap-4">
-            <ThemeToggleButton />
-            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-full">
-              <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-              <span className="text-sm font-medium">{user.name}</span>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Input
+                placeholder="Buscar por título..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 w-64"
+              />
             </div>
-            <Button
-              data-testid="logout-button"
-              onClick={onLogout}
-              variant="ghost"
-              size="sm"
-              className="hover:bg-red-50 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Cerrar Sesión
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Checkbox id="show-public" checked={showOnlyPublic} onCheckedChange={setShowOnlyPublic} />
+              <Label htmlFor="show-public">Mostrar solo contenido público</Label>
+            </div>
           </div>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Mi Contenido Formativo</h2>
-          <p className="text-gray-600 dark:text-gray-400">Completa los contenidos y cuestionarios asignados</p>
-        </div>
-
-        {contents.length === 0 ? (
+        {filteredContents.length === 0 ? (
           <Card className="text-center py-12 bg-white dark:bg-gray-800/50">
             <CardContent>
               <BookOpen className="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-600 dark:text-gray-400 text-lg">No tienes contenido asignado aún</p>
+              <p className="text-gray-600 dark:text-gray-400 text-lg">
+                {searchQuery ? 'No se encontraron formaciones con ese título' : (showOnlyPublic ? 'No hay contenido público disponible' : 'No tienes contenido asignado aún')}
+              </p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {contents.map((content) => {
+            {filteredContents.map((content) => {
               const prog = getProgressForContent(content.id);
               const progressPercent = calculateProgress(content, prog);
               const isCompleted = prog?.completed || false;
@@ -169,7 +149,6 @@ export default function RepresentativeDashboard({ user, onLogout }) {
             })}
           </div>
         )}
-      </main>
-    </div>
+    </DashboardLayout>
   );
 }

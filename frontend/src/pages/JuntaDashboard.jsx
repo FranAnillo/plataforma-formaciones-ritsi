@@ -4,21 +4,12 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
-import axios from 'axios';
 import { toast } from 'sonner';
 import logo from '../static/1710_Isotipo_Degradado.png';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const roleNames = {
-  admin: 'Administrador',
-  escuela_formacion: 'Escuela de Formación',
-  junta_directiva: 'Junta Directiva',
-  universidad: 'Universidad',
-  representante: 'Representante',
-};
+import { roleNames } from '../utils/roles';
+import { api, fetchAllData } from '../services/api';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function JuntaDashboard({ user, onLogout }) {
   const [representatives, setRepresentatives] = useState([]);
@@ -33,9 +24,9 @@ export default function JuntaDashboard({ user, onLogout }) {
 
   const fetchData = async () => {
     try {
-      const [repsRes, contentsRes] = await Promise.all([
-        axios.get(`${API}/representatives`),
-        axios.get(`${API}/content`)
+      const [repsRes, contentsRes] = await fetchAllData([
+        '/representatives',
+        '/content'
       ]);
       setRepresentatives(repsRes.data);
       setContents(contentsRes.data);
@@ -53,7 +44,7 @@ export default function JuntaDashboard({ user, onLogout }) {
     }
 
     try {
-      await axios.post(`${API}/assignments`, {
+      await api.post('/assignments', {
         content_id: selectedContent,
         assign_to_all_representatives: true
       });
@@ -67,14 +58,7 @@ export default function JuntaDashboard({ user, onLogout }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
-        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
@@ -82,9 +66,9 @@ export default function JuntaDashboard({ user, onLogout }) {
       <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="Logo de Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
+            <img src={logo} alt="Logo de Gestión de Formaciones RITSI" className="w-10 h-10 rounded-xl object-cover" />
             <div>
-              <h1 className="text-xl font-bold">Plataforma Formativa</h1>
+              <h1 className="text-xl font-bold">Gestión de Formaciones RITSI</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">{roleNames[user.user_type] || 'Usuario'}</p>
             </div>
           </div>
