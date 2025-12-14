@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, Cookie
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -12,6 +12,8 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import requests
 from enum import Enum
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -20,11 +22,7 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
-
-# Google OAuth settings
-GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
-GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
-GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI')
+GOOGLE_CLIENT_ID = os.environ['GOOGLE_CLIENT_ID']
 
 app = FastAPI()
 
@@ -256,6 +254,9 @@ class UserImport(BaseModel):
 class UserImportRequest(BaseModel):
     users: List[UserImport]
 
+class GoogleLoginRequest(BaseModel):
+    token: str
+
 
 class MarkFileCompletedRequest(BaseModel):
     content_id: str
@@ -314,130 +315,65 @@ async def get_current_user(session_token: Optional[str] = Cookie(None)) -> User:
     
     return User(**user)
 
-@api_router.get("/auth/google/login")
-async def google_login():
-    if not all([GOOGLE_CLIENT_ID, GOOGLE_REDIRECT_URI]):
-        raise HTTPException(status_code=500, detail="Google OAuth no está configurado en el servidor.")
-    
-    auth_url = (
-        f"https://accounts.google.com/o/oauth2/v2/auth?"
-        f"client_id={GOOGLE_CLIENT_ID}&"
-        f"redirect_uri={GOOGLE_REDIRECT_URI}&"
-        "response_type=code&"
-        "scope=openid%20email%20profile"
-    )
-    return RedirectResponse(url=auth_url)
-
-@api_router.get("/auth/google/callback")
-async def google_callback(code: str):
-    if not all([GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI]):
-        raise HTTPException(status_code=500, detail="Google OAuth no está configurado en el servidor.")
-
-    # 1. Exchange authorization code for access token
-    token_url = "https://oauth2.googleapis.com/token"
-    token_data = {
-        "code": code,
-        "client_id": GOOGLE_CLIENT_ID,
-        "client_secret": GOOGLE_CLIENT_SECRET,
-        "redirect_uri": GOOGLE_REDIRECT_URI,
-        "grant_type": "authorization_code",
-    }
-    token_r = requests.post(token_url, data=token_data)
-    if token_r.status_code != 200:
-        raise HTTPException(status_code=400, detail="No se pudo obtener el token de Google.")
-    
-    access_token = token_r.json().get("access_token")
-
-    # 2. Get user info from Google
-    userinfo_url = "https://www.googleapis.com/oauth2/v2/userinfo"
-    userinfo_r = requests.get(userinfo_url, headers={"Authorization": f"Bearer {access_token}"})
-    if userinfo_r.status_code != 200:
-        raise HTTPException(status_code=400, detail="No se pudo obtener la información del usuario.")
-    
-    user_data = userinfo_r.json()
-    user_email = user_data.get("email")
-
-    # 3. Find or create user in DB
-    user = await db.users.find_one({"email": user_email})
-    if not user:
-        new_user = User(
-            email=user_email,
-            name=user_data.get("name", ""),
-            picture=user_data.get("picture"),
-            user_type=UserType.REPRESENTANTE, # Default role
-        )
-        user_dict = new_user.model_dump()
-        user_dict["created_at"] = user_dict["created_at"].isoformat()
-        await db.users.insert_one(user_dict)
-        user = user_dict
-
-    # 4. Create session
-    session_token = str(uuid.uuid4())
-    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-    session = UserSession(user_id=user["id"], session_token=session_token, expires_at=expires_at)
-    session_dict = session.model_dump()
-    session_dict["expires_at"] = session_dict["expires_at"].isoformat()
-    session_dict["created_at"] = session_dict["created_at"].isoformat()
-    await db.user_sessions.insert_one(session_dict)
-
-    # 5. Redirect to frontend with session cookie
-    response = RedirectResponse(url="/dashboard")
-    response.set_cookie(key="session_token", value=session_token, httponly=True, max_age=7*24*60*60, samesite="lax")
-    return response
-
 # Auth endpoints
-@api_router.get("/auth/session")
-async def get_session(session_id: str):
-    """Process session_id from Emergent Auth and create user session"""
+@api_router.post("/auth/google")
+async def google_login(request: GoogleLoginRequest):
+    """Verifica el token de Google y crea una sesión de usuario."""
     try:
-        response = requests.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
-            headers={"X-Session-ID": session_id}
+        # Verificar el token de ID de Google
+        id_info = id_token.verify_oauth2_token(
+            request.token, google_requests.Request(), GOOGLE_CLIENT_ID
         )
-        
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Sesión inválida"
-            )
-        
-        user_data = response.json()
-        
-        # Check if user exists
-        existing_user = await db.users.find_one({"email": user_data["email"]}, {"_id": 0})
-        
+
+        email = id_info['email']
+        name = id_info.get('name', 'Usuario')
+        picture = id_info.get('picture')
+
+        # Comprobar si el usuario ya existe en la base de datos
+        existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+
+        needs_registration = False
         if not existing_user:
-            # Create new user with default type (needs registration)
+            # Si no existe, se crea un nuevo usuario.
+            # Por defecto, se le asigna el rol de REPRESENTANTE y sin universidad.
+            # El frontend deberá guiarlo para completar el registro si es necesario.
+            needs_registration = True
             user = User(
-                email=user_data["email"],
-                name=user_data["name"],
-                picture=user_data.get("picture"),
+                email=email,
+                name=name,
+                picture=picture,
                 user_type=UserType.REPRESENTANTE,
-                university_id=None
+                university_id=None # El usuario deberá registrar su universidad después
             )
             user_dict = user.model_dump()
             user_dict["created_at"] = user_dict["created_at"].isoformat()
             await db.users.insert_one(user_dict)
             user_id = user.id
         else:
+            # Si el usuario ya existe, usamos su ID
             user_id = existing_user["id"]
-        
-        # Create session
-        session_token = user_data["session_token"]
+
+        # Crear una nueva sesión para el usuario
+        session_token = str(uuid.uuid4())
         expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-        
+
         session = UserSession(
             user_id=user_id,
             session_token=session_token,
             expires_at=expires_at
         )
-        
+
         session_dict = session.model_dump()
         session_dict["expires_at"] = session_dict["expires_at"].isoformat()
         session_dict["created_at"] = session_dict["created_at"].isoformat()
         await db.user_sessions.insert_one(session_dict)
-        
-        response = JSONResponse(content={"success": True, "needs_registration": existing_user is None})
+
+        # Devolver una respuesta con la cookie de sesión
+        response = JSONResponse(content={
+            "success": True,
+            "needs_registration": needs_registration,
+            "user": await db.users.find_one({"id": user_id}, {"_id": 0}) # Devuelve el usuario para el frontend
+        })
         response.set_cookie(
             key="session_token",
             value=session_token,
@@ -447,13 +383,16 @@ async def get_session(session_id: str):
             max_age=7*24*60*60,
             path="/"
         )
-        
+
         return response
-        
+
+    except ValueError as e:
+        # El token no es válido
+        raise HTTPException(status_code=401, detail=f"Token de Google inválido: {e}")
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error procesando sesión: {str(e)}"
+            status_code=500,
+            detail=f"Error en el servidor durante el inicio de sesión: {e}"
         )
 
 @api_router.post("/auth/register")
