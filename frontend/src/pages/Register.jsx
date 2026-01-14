@@ -55,13 +55,13 @@ export default function Register({ user, onComplete }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-red-50 to-purple-50 flex items-center justify-center p-6" style={{ fontFamily: 'Exo, sans-serif' }}>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-red-50 to-purple-50 flex items-center justify-center p-4 sm:p-6" style={{ fontFamily: 'Exo, sans-serif' }}>
       <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 max-w-md w-full border border-gray-100">
         <div className="text-center mb-8">
           <div className="bg-red-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
             <GraduationCap className="w-10 h-10 text-[#da2724]" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Completa tu Registro</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Completa tu Registro</h1>
           <p className="text-gray-600">Asóciate a tu universidad</p>
         </div>
 
