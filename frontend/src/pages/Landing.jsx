@@ -18,7 +18,7 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggleButton />
-            <Button 
+            <Button
               data-testid="login-button"
               onClick={() => window.location.href = AUTH_URL}
               className="bg-[#da2724] hover:bg-[#b8211e] text-white px-6 py-2 rounded-full font-medium shadow-lg hover:shadow-xl transition-all"
@@ -39,7 +39,7 @@ export default function Landing() {
           <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-400 mb-10 leading-relaxed">
             Una plataforma completa para gestionar contenidos formativos, cuestionarios y seguimiento del progreso de los representantes universitarios.
           </p>
-          <Button 
+          <Button
             data-testid="hero-cta-button"
             onClick={() => window.location.href = AUTH_URL}
             size="lg"
