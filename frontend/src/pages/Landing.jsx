@@ -3,8 +3,8 @@ import { Button } from '../components/ui/button';
 import logo from '../static/1710_Isotipo_Degradado.png';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
 
-const REDIRECT_URL = window.location.origin + '/dashboard';
-const AUTH_URL = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(REDIRECT_URL)}`;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const AUTH_URL = `${BACKEND_URL}/api/auth/google/login`;
 
 export default function Landing() {
   return (
@@ -18,7 +18,7 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggleButton />
-            <Button 
+            <Button
               data-testid="login-button"
               onClick={() => window.location.href = AUTH_URL}
               className="bg-[#da2724] hover:bg-[#b8211e] text-white px-4 sm:px-6 py-2 rounded-full font-medium shadow-lg hover:shadow-xl transition-all text-sm sm:text-base"
@@ -39,7 +39,7 @@ export default function Landing() {
           <p className="text-base sm:text-xl text-gray-600 dark:text-gray-400 mb-8 sm:mb-10 leading-relaxed">
             Una plataforma completa para gestionar contenidos formativos, cuestionarios y seguimiento del progreso de los representantes universitarios.
           </p>
-          <Button 
+          <Button
             data-testid="hero-cta-button"
             onClick={() => window.location.href = AUTH_URL}
             size="lg"
