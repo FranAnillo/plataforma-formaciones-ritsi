@@ -11,6 +11,7 @@ import CoordinadorTematicoDashboard from './pages/CoordinadorTematicoDashboard';
 import ContentViewer from './pages/ContentViewer';
 import { Toaster } from './components/ui/sonner';
 import { api } from './services/api';
+import LoadingSpinner from './components/LoadingSpinner';
 import '@/App.css';
 
 const dashboardComponents = {
@@ -102,14 +103,7 @@ function App() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700">Cargando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

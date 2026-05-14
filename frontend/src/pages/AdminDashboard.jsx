@@ -448,6 +448,19 @@ export default function AdminDashboard({ user, onLogout }) {
     });
   };
 
+  const statCards = [
+    { label: 'Usuarios totales', value: stats.totalUsers, icon: Users, onClick: () => handleStatCardClick('users', 'all', 'all') },
+    { label: 'Universidades', value: stats.totalUniversities, icon: Building2, onClick: () => setActiveTab('universities') },
+    { label: 'Contenidos', value: stats.totalContents, icon: FileText, onClick: () => handleContentStatCardClick(null) },
+    { label: 'Representantes', value: stats.totalRepresentatives, icon: GraduationCap, onClick: () => handleStatCardClick('users', 'representante', 'all') },
+    { label: 'Formadores', value: stats.totalFormadores, icon: Shield, onClick: () => handleStatCardClick('users', 'formador', 'all') },
+    { label: 'Pendientes', value: stats.pendingContents, icon: Clock, onClick: () => handleContentStatCardClick({ status: 'pending' }) },
+    { label: 'Públicos', value: stats.publicContents, icon: Globe, onClick: () => handleContentStatCardClick({ is_public: true }) },
+    { label: 'Vocalías', value: stats.totalCommissions, icon: Users, onClick: () => setActiveTab('commissions') },
+    { label: 'Inactivos', value: stats.inactiveUsers, icon: UserX, onClick: () => handleStatCardClick('users', 'all', 'inactive') },
+    { label: 'Asignaciones', value: stats.totalAssignments, icon: ClipboardList },
+  ];
+
   if (loading) {
     return <LoadingSpinner message="Cargando panel..." />;
   }
@@ -471,102 +484,15 @@ export default function AdminDashboard({ user, onLogout }) {
           </TabsList>
 
           <TabsContent value="stats" className="mt-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'all', 'all')}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <Users className="w-8 h-8 opacity-80" />
-                    <span className="text-3xl font-bold">{stats.totalUsers}</span>
-                  </div>
-                  <p className="text-red-100">Usuarios Totales</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => setActiveTab('universities')}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <Building2 className="w-8 h-8 opacity-80" />
-                    <span className="text-3xl font-bold">{stats.totalUniversities}</span>
-                  </div>
-                  <p className="text-red-100">Universidades</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleContentStatCardClick(null)}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <FileText className="w-8 h-8 opacity-80" />
-                    <span className="text-3xl font-bold">{stats.totalContents}</span>
-                  </div>
-                  <p className="text-red-100">Contenidos</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'representante', 'all')}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <GraduationCap className="w-8 h-8 opacity-80" />
-                    <span className="text-3xl font-bold">{stats.totalRepresentatives}</span>
-                  </div>
-                  <p className="text-red-100">Representantes</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'formador', 'all')}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <Shield className="w-8 h-8 opacity-80" />
-                    <span className="text-3xl font-bold">{stats.totalFormadores}</span>
-                  </div>
-                  <p className="text-red-100">Formadores</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleContentStatCardClick({ status: 'pending' })}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <Clock className="w-8 h-8 opacity-80" />
-                    <span className="text-3xl font-bold">{stats.pendingContents}</span>
-                  </div>
-                  <p className="text-red-100">Contenidos Pendientes</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleContentStatCardClick({ is_public: true })}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <Globe className="w-8 h-8 opacity-80" />
-                    <span className="text-3xl font-bold">{stats.publicContents}</span>
-                  </div>
-                  <p className="text-red-100">Contenidos Públicos</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => setActiveTab('commissions')}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <Users className="w-8 h-8 opacity-80" />
-                    <span className="text-3xl font-bold">{stats.totalCommissions}</span>
-                  </div>
-                  <p className="text-red-100">Vocalías</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'all', 'inactive')}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <UserX className="w-8 h-8 opacity-80" />
-                    <span className="text-3xl font-bold">{stats.inactiveUsers}</span>
-                  </div>
-                  <p className="text-red-100">Usuarios Inactivos</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <ClipboardList className="w-8 h-8 opacity-80" />
-                    <span className="text-3xl font-bold">{stats.totalAssignments}</span>
-                  </div>
-                  <p className="text-red-100">Asignaciones Totales</p>
-                </CardContent>
-              </Card>
+            <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {statCards.map((stat) => (
+                <StatCard key={stat.label} {...stat} />
+              ))}
             </div>
           </TabsContent>
 
           <TabsContent value="users" className="mt-6">
-            <Card className="bg-white dark:bg-gray-800/50">
+            <Card className="bg-white/85 dark:bg-gray-900/70">
               <CardHeader>
                 <CardTitle>Lista de Usuarios</CardTitle>
                 <CardDescription>Gestiona los usuarios, sus roles y formaciones asignadas.</CardDescription>
@@ -612,7 +538,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     <Button variant="outline" size="sm" onClick={handleExportCSV}><Download className="w-4 h-4 mr-2" /> Exportar</Button>
                   </div>
                 </div>
-                <div className="border rounded-md">
+                <div className="admin-table-shell">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -694,7 +620,7 @@ export default function AdminDashboard({ user, onLogout }) {
             <EscuelaFormacionDashboard user={user} onLogout={onLogout} showHeader={false} initialFilter={initialContentFilter} />
           </TabsContent>
           <TabsContent value="zones" className="mt-6">
-            <Card className="bg-white dark:bg-gray-800/50">
+            <Card className="bg-white/85 dark:bg-gray-900/70">
               <CardHeader>
                 <CardTitle>Gestión por Zonas</CardTitle>
                 <CardDescription>Asigna formaciones a todas las universidades de una zona específica.</CardDescription>
@@ -704,7 +630,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   const unisInZone = universities.filter(u => u.zone === zone && u.is_active);
                   const repsInZone = users.filter(u => unisInZone.some(uni => uni.id === u.university_id));
                   return (
-                    <Card key={zone} className="flex flex-col">
+                    <Card key={zone} className="flex flex-col border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950/35">
                       <CardHeader>
                         <CardTitle>Zona {zone}</CardTitle>
                       </CardHeader>
@@ -726,12 +652,12 @@ export default function AdminDashboard({ user, onLogout }) {
             </Card>
           </TabsContent>
           <TabsContent value="universities" className="mt-6">
-            <Card className="bg-white dark:bg-gray-800/50">
+            <Card className="bg-white/85 dark:bg-gray-900/70">
               <CardHeader>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <CardTitle>Gestión de Universidades</CardTitle>
-                  <Button onClick={() => handleOpenUniversityDialog()}>
-                    <Plus className="w-4 h-4 mr-2" /> Crear Universidad
+                  <Button onClick={() => handleOpenUniversityDialog()} className="w-full sm:w-auto">
+                    <Plus className="w-4 h-4 mr-2" /> Crear universidad
                   </Button>
                 </div>
                 <CardDescription>Crea, edita y elimina las universidades de la plataforma.</CardDescription>
@@ -761,7 +687,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     </Select>
                   </div>
                 </div>
-                <div className="border rounded-md">
+                <div className="admin-table-shell">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -827,15 +753,15 @@ export default function AdminDashboard({ user, onLogout }) {
             </Card>
           </TabsContent>
           <TabsContent value="commissions" className="mt-6">
-            <Card className="bg-white dark:bg-gray-800/50">
+            <Card className="bg-white/85 dark:bg-gray-900/70">
               <CardHeader>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle>Gestión de Vocalías</CardTitle>
                     <CardDescription>Crea y edita vocalías. No tienen representantes asociados.</CardDescription>
                   </div>
-                  <Button onClick={() => handleOpenCommissionDialog()}>
-                    <Plus className="w-4 h-4 mr-2" /> Crear Vocalía
+                  <Button onClick={() => handleOpenCommissionDialog()} className="w-full sm:w-auto">
+                    <Plus className="w-4 h-4 mr-2" /> Crear vocalía
                   </Button>
                 </div>
               </CardHeader>
@@ -845,10 +771,10 @@ export default function AdminDashboard({ user, onLogout }) {
                     placeholder="Buscar vocalía por nombre..."
                     value={commissionSearchQuery}
                     onChange={(e) => setCommissionSearchQuery(e.target.value)}
-                    className="max-w-sm"
+                    className="w-full sm:max-w-sm"
                   />
                 </div>
-                <div className="border rounded-md">
+                <div className="admin-table-shell">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -908,13 +834,13 @@ export default function AdminDashboard({ user, onLogout }) {
             </Card>
           </TabsContent>
           <TabsContent value="activity" className="mt-6">
-            <Card className="bg-white dark:bg-gray-800/50">
+            <Card className="bg-white/85 dark:bg-gray-900/70">
               <CardHeader>
                 <CardTitle>Registro de Actividad</CardTitle>
                 <CardDescription>Auditoría de cambios importantes en la plataforma.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="border rounded-md">
+                <div className="admin-table-shell">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1072,5 +998,40 @@ export default function AdminDashboard({ user, onLogout }) {
         </Dialog>
 
     </DashboardLayout>
+  );
+}
+
+function StatCard({ icon: Icon, label, value, onClick }) {
+  const interactiveProps = onClick
+    ? {
+        role: 'button',
+        tabIndex: 0,
+        onClick,
+        onKeyDown: (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onClick();
+          }
+        },
+      }
+    : {};
+
+  return (
+    <Card
+      className={`border-gray-200 bg-white/85 transition-all dark:border-gray-800 dark:bg-gray-900/70 ${
+        onClick ? 'cursor-pointer hover:-translate-y-0.5 hover:border-red-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-[#da2724]' : ''
+      }`}
+      {...interactiveProps}
+    >
+      <CardContent className="pt-6">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-[#da2724] dark:bg-red-950/40">
+            <Icon className="h-5 w-5" />
+          </span>
+          <span className="text-3xl font-extrabold tracking-tight text-gray-950 dark:text-white">{value}</span>
+        </div>
+        <p className="text-sm font-semibold text-gray-600 dark:text-gray-300">{label}</p>
+      </CardContent>
+    </Card>
   );
 }

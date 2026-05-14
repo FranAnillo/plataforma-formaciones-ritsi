@@ -10,6 +10,7 @@ import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
 import { api } from '../services/api';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function ContentViewer({ user }) {
   const { contentId } = useParams();
@@ -42,6 +43,10 @@ export default function ContentViewer({ user }) {
       ]);
       
       setContent(contentRes.data);
+      if (contentRes.data.files.length === 0 && contentRes.data.quizzes.length > 0) {
+        setCurrentSection('quiz');
+        setCurrentQuizIndex(0);
+      }
       const prog = progressRes.data.find(p => p.content_id === contentId);
       setProgress(prog || null);
       
@@ -135,7 +140,7 @@ export default function ContentViewer({ user }) {
         setProgress(prog);
         
         // Check if completed
-        if (prog.completed) {
+        if (prog?.completed) {
           toast.success('¡Has completado todo el contenido formativo!', {
             duration: 5000
           });
@@ -170,7 +175,10 @@ export default function ContentViewer({ user }) {
   };
 
   const canAccessQuizzes = () => {
-    if (!content || !progress) return false;
+    if (isPreviewMode) return true;
+    if (!content) return false;
+    if (content.files.length === 0) return true;
+    if (!progress) return false;
     return content.files.every(file => progress.files_completed?.includes(file.id));
   };
 
@@ -242,7 +250,7 @@ export default function ContentViewer({ user }) {
       if (!fileId) return renderUnsupportedPreview(file);
 
       return (
-        <div className="w-full h-[600px] bg-gray-100 rounded-lg overflow-hidden">
+        <div className="h-[65svh] min-h-[360px] w-full overflow-hidden rounded-lg bg-gray-100 sm:min-h-[520px] dark:bg-gray-900">
           <iframe
             src={`https://drive.google.com/file/d/${fileId}/preview`}
             className="w-full h-full"
@@ -254,7 +262,7 @@ export default function ContentViewer({ user }) {
       if (!fileId) return renderUnsupportedPreview(file);
 
       return (
-        <div className="w-full bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center p-4">
+        <div className="flex w-full items-center justify-center overflow-hidden rounded-lg bg-gray-100 p-3 sm:p-4 dark:bg-gray-900">
           <img
             src={`https://drive.google.com/uc?export=view&id=${fileId}`}
             alt={file.title}
@@ -282,20 +290,19 @@ export default function ContentViewer({ user }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 transition-colors duration-300 ease-in-out">
-        <div className="text-center" style={{ fontFamily: 'Exo, sans-serif' }}>
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#da2724] mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 dark:text-gray-300">Cargando contenido...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner message="Cargando contenido..." />;
   }
 
   if (!content) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
-        <p>Contenido no encontrado</p>
+      <div className="app-page flex min-h-screen items-center justify-center px-4 text-gray-800 dark:text-gray-200">
+        <Card className="max-w-md bg-white/85 text-center dark:bg-gray-900/80">
+          <CardContent className="pt-6">
+            <AlertCircle className="mx-auto mb-3 h-10 w-10 text-[#da2724]" />
+            <p className="font-semibold">Contenido no encontrado</p>
+            <Button className="mt-4" variant="outline" onClick={() => navigate('/dashboard')}>Volver al dashboard</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -304,26 +311,35 @@ export default function ContentViewer({ user }) {
   const currentQuiz = content.quizzes[currentQuizIndex];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
+    <div className="app-page min-h-screen text-gray-800 transition-colors duration-300 ease-in-out dark:text-gray-200" style={{ fontFamily: 'Exo, sans-serif' }}>
       {/* Header */}
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
+      <header className="sticky top-0 z-50 border-b border-gray-200/80 bg-white/90 shadow-sm backdrop-blur-md dark:border-gray-800 dark:bg-gray-950/85">
         <div className="container mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-2">
             <Button
               data-testid="back-button"
               onClick={() => navigate('/dashboard')}
               variant="ghost"
-              className="hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="self-start hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Volver al Dashboard
+              Volver al dashboard
             </Button>
             <ThemeToggleButton />
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white break-words">{content.title}</h1>
-          {content.description && (
-            <p className="text-gray-600 dark:text-gray-400 mt-1">{content.description}</p>
-          )}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="break-words text-xl font-extrabold tracking-tight text-gray-950 sm:text-2xl dark:text-white">{content.title}</h1>
+              {content.description && (
+                <p className="mt-1 max-w-4xl text-sm leading-6 text-gray-600 dark:text-gray-400">{content.description}</p>
+              )}
+            </div>
+            {isPreviewMode && (
+              <span className="w-fit rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#b8211e] dark:border-red-500/30 dark:bg-red-950/40 dark:text-red-200">
+                Vista previa
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
@@ -331,8 +347,17 @@ export default function ContentViewer({ user }) {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2">
+            {content.files.length === 0 && content.quizzes.length === 0 && (
+              <Card className="bg-white/85 text-center dark:bg-gray-900/70">
+                <CardContent className="pt-6">
+                  <FileText className="mx-auto mb-3 h-10 w-10 text-gray-400" />
+                  <p className="font-medium text-gray-600 dark:text-gray-400">Este contenido todavía no tiene recursos disponibles.</p>
+                </CardContent>
+              </Card>
+            )}
+
             {currentSection === 'files' && currentFile && (
-              <Card className="bg-white dark:bg-gray-800/50">
+              <Card className="bg-white/85 dark:bg-gray-900/70">
                 <CardHeader>
                   <CardTitle className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2 min-w-0">
@@ -340,7 +365,7 @@ export default function ContentViewer({ user }) {
                       <span className="break-words">{currentFile.title}</span>
                     </div>
                     {isFileCompleted(currentFile.id) && (
-                      <CheckCircle className="w-6 h-6 text-green-600" />
+                      <CheckCircle className="h-6 w-6 shrink-0 text-green-600" />
                     )}
                   </CardTitle>
                   {currentFile.description && (
@@ -365,14 +390,14 @@ export default function ContentViewer({ user }) {
             )}
 
             {currentSection === 'quiz' && currentQuiz && (
-              <Card className="bg-white dark:bg-gray-800/50">
+              <Card className="bg-white/85 dark:bg-gray-900/70">
                 <CardHeader>
                   <CardTitle>{currentQuiz.title}</CardTitle>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Necesitas {currentQuiz.passing_percentage}% para aprobar
                   </p>
                   {!canAccessQuizzes() && (
-                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900/30 rounded-lg p-4 flex items-start gap-3">
+                    <div className="flex items-start gap-3 rounded-lg border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-900/30 dark:bg-yellow-900/20">
                       <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
                       <p className="text-sm text-yellow-800 dark:text-yellow-200">
                         Debes completar todos los archivos antes de acceder a los cuestionarios
@@ -384,7 +409,7 @@ export default function ContentViewer({ user }) {
                   {canAccessQuizzes() ? (
                     <div className="space-y-6">
                       {currentQuiz.questions.map((question, qIndex) => (
-                        <Card key={question.id} className="bg-gray-50 dark:bg-gray-800">
+                        <Card key={question.id} className="border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950/40">
                           <CardContent className="pt-6">
                             <p className="font-medium text-gray-800 dark:text-gray-100 mb-4">
                               {qIndex + 1}. {question.question_text}
@@ -401,7 +426,7 @@ export default function ContentViewer({ user }) {
                                 }}
                               >
                                 {question.options.map((option, optIndex) => (
-                                  <div key={optIndex} className="flex items-center space-x-2 p-2 hover:bg-white dark:hover:bg-gray-700/50 rounded transition-colors">
+                                  <div key={optIndex} className="flex min-h-11 items-center space-x-2 rounded p-2 transition-colors hover:bg-white dark:hover:bg-gray-800">
                                     <RadioGroupItem value={optIndex.toString()} id={`${question.id}-${optIndex}`} />
                                     <Label htmlFor={`${question.id}-${optIndex}`} className="cursor-pointer flex-1">
                                       {option}
@@ -422,7 +447,7 @@ export default function ContentViewer({ user }) {
                                 }}
                               >
                                 {question.options.map((option, optIndex) => (
-                                  <div key={optIndex} className="flex items-center space-x-2 p-2 hover:bg-white rounded transition-colors">
+                                  <div key={optIndex} className="flex min-h-11 items-center space-x-2 rounded p-2 transition-colors hover:bg-white dark:hover:bg-gray-800">
                                     <RadioGroupItem value={optIndex.toString()} id={`${question.id}-${optIndex}`} className="dark:text-white" />
                                     <Label htmlFor={`${question.id}-${optIndex}`} className="cursor-pointer flex-1">
                                       {option}
@@ -435,7 +460,7 @@ export default function ContentViewer({ user }) {
                             {question.question_type === 'multiple_response' && (
                               <div className="space-y-2">
                                 {question.options.map((option, optIndex) => (
-                                  <div key={optIndex} className="flex items-center space-x-2 p-2 hover:bg-white dark:hover:bg-gray-700/50 rounded transition-colors">
+                                  <div key={optIndex} className="flex min-h-11 items-center space-x-2 rounded p-2 transition-colors hover:bg-white dark:hover:bg-gray-800">
                                     <Checkbox
                                       id={`${question.id}-${optIndex}`}
                                       checked={quizAnswers[question.id]?.includes(optIndex)}
@@ -469,7 +494,7 @@ export default function ContentViewer({ user }) {
                         data-testid="submit-quiz-button"
                         onClick={handleSubmitQuiz}
                         disabled={submittingQuiz}
-                        className="w-full bg-[#da2724] hover:bg-[#b8211e] text-white py-6 text-lg"
+                        className="w-full bg-[#da2724] py-6 text-base text-white hover:bg-[#b8211e]"
                       >
                         {submittingQuiz ? 'Enviando...' : 'Enviar Cuestionario'}
                       </Button>
@@ -485,8 +510,8 @@ export default function ContentViewer({ user }) {
           </div>
 
           {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <Card className="sticky top-24 bg-white dark:bg-gray-800/50">
+          <div className="order-first lg:order-none lg:col-span-1">
+            <Card className="bg-white/85 dark:bg-gray-900/70 lg:sticky lg:top-24">
               <CardHeader>
                 <CardTitle className="text-lg">Progreso</CardTitle>
               </CardHeader>
@@ -502,7 +527,7 @@ export default function ContentViewer({ user }) {
                           setCurrentSection('files');
                           setCurrentFileIndex(index);
                         }}
-                        className={`w-full text-left p-3 rounded-lg transition-all ${
+                        className={`touch-row w-full rounded-lg p-3 text-left transition-all ${
                           currentSection === 'files' && currentFileIndex === index
                             ? 'bg-red-100 dark:bg-red-500/20 border-2 border-red-400 dark:border-red-500'
                             : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border-2 border-transparent'
@@ -537,7 +562,7 @@ export default function ContentViewer({ user }) {
                             }
                           }}
                           disabled={!canAccessQuizzes()}
-                          className={`w-full text-left p-3 rounded-lg transition-all ${
+                          className={`touch-row w-full rounded-lg p-3 text-left transition-all ${
                             currentSection === 'quiz' && currentQuizIndex === index
                               ? 'bg-red-100 dark:bg-red-500/20 border-2 border-red-400 dark:border-red-500'
                               : canAccessQuizzes()

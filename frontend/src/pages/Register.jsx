@@ -52,19 +52,19 @@ export default function Register({ user, onComplete }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-red-50 to-purple-50 flex items-center justify-center p-4 sm:p-6" style={{ fontFamily: 'Exo, sans-serif' }}>
-      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-6 sm:p-8 md:p-12 max-w-md w-full border border-gray-100">
+    <div className="app-page flex min-h-screen items-center justify-center p-4 sm:p-6" style={{ fontFamily: 'Exo, sans-serif' }}>
+      <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg sm:p-8 md:p-10 dark:border-gray-800 dark:bg-gray-900">
         <div className="text-center mb-8">
-          <div className="bg-red-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-lg bg-red-50 dark:bg-red-950/40">
             <GraduationCap className="w-10 h-10 text-[#da2724]" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Completa tu Registro</h1>
-          <p className="text-gray-600">Asóciate a tu universidad</p>
+          <h1 className="mb-2 text-2xl font-extrabold tracking-tight text-gray-950 sm:text-3xl dark:text-white">Completa tu registro</h1>
+          <p className="text-sm leading-6 text-gray-600 dark:text-gray-400">Confirma tu nombre y vincula tu cuenta a una universidad.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6" data-testid="register-form">
           <div>
-            <Label htmlFor="name" className="text-gray-700 font-medium mb-2 flex items-center gap-2">
+            <Label htmlFor="name" className="mb-2 flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200">
               <User className="w-4 h-4" />
               Nombre Completo
             </Label>
@@ -81,7 +81,7 @@ export default function Register({ user, onComplete }) {
           </div>
 
           <div>
-            <Label htmlFor="university" className="text-gray-700 font-medium mb-2 flex items-center gap-2">
+            <Label htmlFor="university" className="mb-2 flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200">
               <Building2 className="w-4 h-4" />
               Universidad
             </Label>
@@ -103,9 +103,9 @@ export default function Register({ user, onComplete }) {
             data-testid="submit-register-button"
             type="submit"
             disabled={loading}
-            className="w-full bg-[#da2724] hover:bg-[#b8211e] text-white py-6 rounded-full text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
+            className="w-full bg-[#da2724] py-6 text-base text-white shadow-sm hover:bg-[#b8211e]"
           >
-            {loading ? 'Registrando...' : 'Completar Registro'}
+            {loading ? 'Registrando...' : 'Completar registro'}
           </Button>
         </form>
       </div>

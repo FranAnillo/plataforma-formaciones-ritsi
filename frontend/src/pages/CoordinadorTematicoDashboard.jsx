@@ -70,8 +70,8 @@ export default function CoordinadorTematicoDashboard({ user, onLogout }) {
   const myVocalias = thematicCommissions.filter(vocalia => vocalia.coordinator_id === user.id);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200" style={{ fontFamily: 'Exo, sans-serif' }}>
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
+    <div className="app-page min-h-screen text-gray-800 dark:text-gray-200" style={{ fontFamily: 'Exo, sans-serif' }}>
+      <header className="sticky top-0 z-50 border-b border-gray-200/80 bg-white/90 shadow-sm backdrop-blur-md dark:border-gray-800 dark:bg-gray-950/85">
         <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <img src={logo} alt="Logo Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
@@ -115,7 +115,7 @@ export default function CoordinadorTematicoDashboard({ user, onLogout }) {
             {myVocalias.length === 0 ? (
               <p className="text-sm text-gray-600 dark:text-gray-400">No tienes ninguna vocalía asignada.</p>
             ) : myVocalias.map(vocalia => (
-              <Card key={vocalia.id} className="bg-gray-50 dark:bg-gray-800/50">
+                <Card key={vocalia.id} className="border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950/35">
                 <CardHeader>
                   <CardTitle className="text-lg">{vocalia.name}</CardTitle>
                 </CardHeader>

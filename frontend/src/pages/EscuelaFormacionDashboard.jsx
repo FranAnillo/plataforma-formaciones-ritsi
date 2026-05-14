@@ -16,7 +16,7 @@ import { api, fetchAllData } from '../services/api';
 import DashboardLayout from '../components/DashboardLayout';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-export default function EscuelaFormacionDashboard({ user, onLogout, showHeader = true }) {
+export default function EscuelaFormacionDashboard({ user, onLogout, showHeader = true, initialFilter }) {
   const navigate = useNavigate();
   const [contents, setContents] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -57,6 +57,19 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (initialFilter === undefined) return;
+
+    setStatusFilter(initialFilter?.status || 'all');
+    if (initialFilter?.is_public === true) {
+      setVisibilityFilter('public');
+    } else if (initialFilter?.is_public === false) {
+      setVisibilityFilter('private');
+    } else {
+      setVisibilityFilter('all');
+    }
+  }, [initialFilter]);
 
   const fetchData = async () => {
     try {
@@ -396,19 +409,20 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
   });
 
   const dashboardContent = (
-    <div className="flex flex-col gap-8"> {/* Cambiado a columna y separado por espacio */}
+    <div className="flex flex-col gap-6 sm:gap-8">
       {/* Filtros y acciones arriba */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-8">
+      <div className="rounded-lg border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         {showHeader && (
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">{`Panel de ${roleNames[user.user_type]}`}</h2>
-            <p className="text-gray-600 dark:text-gray-400">Crea y asigna contenidos formativos</p>
+            <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-gray-950 sm:text-3xl dark:text-white">{`Panel de ${roleNames[user.user_type]}`}</h2>
+            <p className="text-sm leading-6 text-gray-600 dark:text-gray-400">Crea, revisa y asigna contenidos formativos.</p>
           </div>
         )}
-        <div className={`flex w-full flex-col gap-3 xl:flex-row xl:items-center ${!showHeader ? 'xl:justify-between' : 'xl:w-auto'}`}> {/* Filtros y botones */}
+        <div className={`flex w-full flex-col gap-3 xl:flex-row xl:items-center ${!showHeader ? 'xl:justify-between' : 'xl:w-auto'}`}>
           {user.user_type !== 'formador' && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Label>Estado:</Label>
+            <div className="grid gap-2 sm:grid-cols-[auto_minmax(9rem,1fr)_auto_minmax(9rem,1fr)] sm:items-center xl:w-auto">
+              <Label className="text-sm font-semibold">Estado</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -417,7 +431,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                   <SelectItem value="published">Publicado</SelectItem>
                 </SelectContent>
               </Select>
-              <Label>Visibilidad:</Label>
+              <Label className="text-sm font-semibold">Visibilidad</Label>
               <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
                 <SelectTrigger className="w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -527,7 +541,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                           onDragEnd={handleFileSort}
                           onDragOver={(e) => e.preventDefault()}
                           className={`bg-gray-50 dark:bg-gray-900 cursor-grab transition-all 
-                            ${draggingItem?.type === 'file' && draggingItem?.index === index ? 'opacity-50 shadow-2xl' : 'opacity-100'}
+                            ${draggingItem?.type === 'file' && draggingItem?.index === index ? 'opacity-60 shadow-md' : 'opacity-100'}
                             ${dragOverItem.current === index ? 'border-2 border-red-400' : ''}`}
                         >
                           <CardContent className="pt-6 space-y-3">
@@ -598,7 +612,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                           onDragEnd={handleQuizSort}
                           onDragOver={(e) => e.preventDefault()}
                           className={`bg-blue-50 dark:bg-blue-900/20 cursor-grab transition-all 
-                            ${draggingItem?.type === 'quiz' && draggingItem?.index === quizIndex ? 'opacity-50 shadow-2xl' : 'opacity-100'}
+                            ${draggingItem?.type === 'quiz' && draggingItem?.index === quizIndex ? 'opacity-60 shadow-md' : 'opacity-100'}
                             ${dragOverItem.current === quizIndex ? 'border-2 border-red-400' : ''}`}
                         >
                           <CardContent className="pt-6 space-y-4">
@@ -829,11 +843,12 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
           </div>
         </div>
       </div>
+      </div>
 
       {/* Contenidos */}
-      <Card className="bg-white dark:bg-gray-800/50">
+      <Card className="bg-white/85 dark:bg-gray-900/70">
         <CardHeader>
-          <CardTitle>Contenidos Creados ({filteredContents.length})</CardTitle>
+          <CardTitle>Contenidos creados ({filteredContents.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {filteredContents.length === 0 ? (
@@ -843,16 +858,16 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
           ) : (
             <div className="space-y-4">
               {filteredContents.map((content) => (
-                <Card key={content.id} className="hover:shadow-lg transition-shadow bg-white dark:bg-gray-800">
+                <Card key={content.id} className="border-gray-200 bg-white transition-shadow hover:border-red-200 hover:shadow-md dark:border-gray-800 dark:bg-gray-950/35 dark:hover:border-red-500/40">
                   <CardContent className="pt-6">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h3 className="font-bold text-lg mb-2">{content.title}</h3>
+                      <div className="min-w-0">
+                        <h3 className="mb-2 break-words text-lg font-extrabold text-gray-950 dark:text-white">{content.title}</h3>
                         {content.description && (
                           <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{content.description}</p>
                         )}
                       </div>
-                      <div className="flex flex-col items-end gap-2">
+                      <div className="flex flex-row flex-wrap items-start gap-2 sm:flex-col sm:items-end">
                         <span className={`text-xs font-medium px-2 py-1 rounded-full ${
                           content.status === 'published' 
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' 
@@ -879,19 +894,19 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
                         <span className="flex items-center gap-1"><FileText className="w-4 h-4" />{content.files.length} archivos</span>
                         <span className="flex items-center gap-1"><HelpCircle className="w-4 h-4" />{content.quizzes.length} cuestionarios</span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                         {user.user_type !== 'formador' && content.status === 'pending' && (
                           <>
-                            <Button onClick={() => handleApproveContent(content.id)} variant="ghost" size="sm" className="text-green-600 hover:text-green-700"><Check className="w-4 h-4 mr-2" /> Aprobar</Button>
-                            <Button onClick={() => handleRejectContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700"><X className="w-4 h-4 mr-2" /> Rechazar</Button>
+                            <Button onClick={() => handleApproveContent(content.id)} variant="ghost" size="sm" className="justify-start text-green-600 hover:text-green-700 sm:justify-center"><Check className="w-4 h-4 mr-2" /> Aprobar</Button>
+                            <Button onClick={() => handleRejectContent(content.id)} variant="ghost" size="sm" className="justify-start text-red-600 hover:text-red-700 sm:justify-center"><X className="w-4 h-4 mr-2" /> Rechazar</Button>
                           </>
                         )}
-                        <Button onClick={() => navigate(`/content/${content.id}?preview=true`)} variant="ghost" size="sm">
+                        <Button onClick={() => navigate(`/content/${content.id}?preview=true`)} variant="ghost" size="sm" className="justify-start sm:justify-center">
                           <Eye className="w-4 h-4 mr-2" />
-                          Vista Previa
+                          Vista previa
                         </Button>
                         {user.user_type !== 'formador' && (
-                          <Button onClick={() => handleDeleteContent(content.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                          <Button onClick={() => handleDeleteContent(content.id)} variant="ghost" size="sm" className="justify-start text-red-600 hover:text-red-700 sm:justify-center">
                             <Trash2 className="w-4 h-4 mr-2" />
                             Eliminar
                           </Button>
@@ -908,7 +923,7 @@ export default function EscuelaFormacionDashboard({ user, onLogout, showHeader =
 
       {/* Gestión de Categorías */}
       {user.user_type !== 'formador' && (
-      <Card className="bg-white dark:bg-gray-800/50 mt-0"> {/* Quitamos margen extra arriba */}
+      <Card className="mt-0 bg-white/85 dark:bg-gray-900/70">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Tag className="w-5 h-5" />
