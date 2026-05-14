@@ -22,9 +22,11 @@ import asyncio
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# Cargar variables del backend
-backend_path = Path(__file__).parent.parent / "backend"
-load_dotenv(backend_path / ".env")
+# Cargar variables locales sin pisar las que ya vengan del entorno
+backend_path = Path(__file__).resolve().parent.parent
+project_root = backend_path.parent
+load_dotenv(project_root / ".env")
+load_dotenv(backend_path / ".env", override=False)
 
 
 async def delete_users(mongo_url, db_name, email=None, user_id=None, role=None, delete_all=False):
@@ -85,7 +87,7 @@ def main():
     db_name = os.getenv("DB_NAME")
 
     if not mongo_url or not db_name:
-        print("❌ Error: No se encontró MONGO_URL o DB_NAME en backend/.env")
+        print("❌ Error: No se encontró MONGO_URL o DB_NAME en el entorno ni en .env")
         return
 
     asyncio.run(
@@ -102,4 +104,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -67,19 +67,19 @@ export default function RepresentativeDashboard({ user, onLogout }) {
 
   return (
     <DashboardLayout user={user} onLogout={onLogout}>
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Mi Contenido Formativo</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">Mi Contenido Formativo</h2>
             <p className="text-gray-600 dark:text-gray-400">Completa los contenidos y cuestionarios asignados</p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="relative">
+          <div className="flex w-full flex-col gap-3 md:flex-row md:items-center lg:w-auto">
+            <div className="relative w-full md:w-auto">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <Input
                 placeholder="Buscar por título..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 w-64"
+                className="pl-9 w-full md:w-64"
               />
             </div>
             <div className="flex items-center space-x-2">
@@ -113,8 +113,8 @@ export default function RepresentativeDashboard({ user, onLogout }) {
                   onClick={() => navigate(`/content/${content.id}`)}
                 >
                   <CardHeader>
-                    <CardTitle className="flex items-start justify-between">
-                      <span className="text-lg">{content.title}</span>
+                    <CardTitle className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <span className="text-lg break-words">{content.title}</span>
                       {isCompleted && (
                         <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">
                           Completado
@@ -125,7 +125,7 @@ export default function RepresentativeDashboard({ user, onLogout }) {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <BookOpen className="w-4 h-4" />
                         <span>{content.files.length} archivos</span>
                         <span className="mx-2">•</span>

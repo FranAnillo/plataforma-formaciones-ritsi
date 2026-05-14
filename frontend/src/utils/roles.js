@@ -2,7 +2,7 @@ export const roleNames = {
   admin: 'Administrador',
   escuela_formacion: 'Escuela de Formación',
   colaboracion_externa: 'Colaboración Externa',
-  coordinador_tematico: 'Coordinación Temática',
+  coordinador_tematico: 'Vocalía',
   junta_directiva: 'Junta Directiva',
   universidad: 'Universidad',
   representante: 'Representante',

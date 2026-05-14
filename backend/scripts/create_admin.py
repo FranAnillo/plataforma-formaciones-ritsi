@@ -10,12 +10,14 @@ import uuid
 from datetime import datetime, timezone
 
 # Añadir el directorio del backend al path para poder importar sus módulos
-backend_path = Path(__file__).parent.parent / 'backend'
+backend_path = Path(__file__).resolve().parent.parent
+project_root = backend_path.parent
 sys.path.insert(0, str(backend_path))
 
-# Cargar variables de entorno desde el .env del backend
+# Cargar variables de entorno locales sin pisar las que ya vengan del entorno
 from dotenv import load_dotenv
-load_dotenv(backend_path / '.env')
+load_dotenv(project_root / '.env')
+load_dotenv(backend_path / '.env', override=False)
 
 from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio

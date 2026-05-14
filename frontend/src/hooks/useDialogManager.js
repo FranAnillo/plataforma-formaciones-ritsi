@@ -6,10 +6,9 @@ export const useDialogManager = () => {
     assignContent: false,
     editCategory: null,
     deleteCategory: null,
-    createCommission: false,
-    editCommission: null,
-    deleteCommission: null,
-    assignToCommission: null,
+    createVocalia: false,
+    editVocalia: null,
+    deleteVocalia: null,
   });
 
   const openDialog = (dialog, data = true) => {

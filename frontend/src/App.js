@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import axios from 'axios';
 import Landing from './pages/Landing';
 import Register from './pages/Register';
 import RepresentativeDashboard from './pages/RepresentativeDashboard';
@@ -8,14 +7,33 @@ import UniversityDashboard from './pages/UniversityDashboard';
 import JuntaDashboard from './pages/JuntaDashboard';
 import EscuelaFormacionDashboard from './pages/EscuelaFormacionDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import CoordinadorTematicoDashboard from './pages/CoordinadorTematicoDashboard';
 import ContentViewer from './pages/ContentViewer';
 import { Toaster } from './components/ui/sonner';
+import { api } from './services/api';
 import '@/App.css';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+const dashboardComponents = {
+  representante: RepresentativeDashboard,
+  colaboracion_externa: RepresentativeDashboard,
+  universidad: UniversityDashboard,
+  junta_directiva: JuntaDashboard,
+  escuela_formacion: EscuelaFormacionDashboard,
+  coordinador_tematico: CoordinadorTematicoDashboard,
+  formador: EscuelaFormacionDashboard,
+  admin: AdminDashboard,
+};
 
-axios.defaults.withCredentials = true;
+const getSessionIdFromUrl = () => {
+  const searchSessionId = new URLSearchParams(window.location.search).get('session_id');
+  if (searchSessionId) return searchSessionId;
+
+  const hash = window.location.hash.replace(/^#/, '');
+  if (!hash) return null;
+
+  const hashQuery = hash.includes('?') ? hash.split('?')[1] : hash;
+  return new URLSearchParams(hashQuery).get('session_id');
+};
 
 function App() {
   const [user, setUser] = useState(null);
@@ -27,19 +45,16 @@ function App() {
   }, []);
 
   const checkSession = async () => {
-    // Check for session_id in URL fragment
-    const fragment = window.location.hash;
-    if (fragment && fragment.includes('session_id=')) {
-      const sessionId = fragment.split('session_id=')[1].split('&')[0];
+    const sessionId = getSessionIdFromUrl();
+    if (sessionId) {
       await processSessionId(sessionId);
-      // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
       return;
     }
 
     // Check existing session
     try {
-      const response = await axios.get(`${API}/auth/me`);
+      const response = await api.get('/auth/me');
       setUser(response.data);
       
       // Check if needs registration
@@ -47,7 +62,7 @@ function App() {
         setNeedsRegistration(true);
       }
     } catch (error) {
-      console.log('No hay sesión activa');
+      // No active session: keep the public landing page.
     } finally {
       setLoading(false);
     }
@@ -55,17 +70,22 @@ function App() {
 
   const processSessionId = async (sessionId) => {
     try {
-      const response = await axios.get(`${API}/auth/session?session_id=${sessionId}`);
-      
-      if (response.data.needs_registration) {
-        setNeedsRegistration(true);
+      const response = await api.get('/auth/session', {
+        params: { session_id: sessionId },
+      });
+
+      setNeedsRegistration(Boolean(response.data.needs_registration));
+
+      if (response.data.user) {
+        setUser(response.data.user);
+      } else {
+        const userResponse = await api.get('/auth/me');
+        setUser(userResponse.data);
       }
-      
-      // Get user data
-      const userResponse = await axios.get(`${API}/auth/me`);
-      setUser(userResponse.data);
     } catch (error) {
       console.error('Error procesando sesión:', error);
+      setUser(null);
+      setNeedsRegistration(false);
     } finally {
       setLoading(false);
     }
@@ -73,7 +93,7 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      await axios.post(`${API}/auth/logout`);
+      await api.post('/auth/logout');
       setUser(null);
       setNeedsRegistration(false);
     } catch (error) {
@@ -120,21 +140,10 @@ function App() {
         } />
         
         <Route path="/dashboard" element={
-          user && !needsRegistration ? (
-            user.user_type === 'representante' ? (
-              <RepresentativeDashboard user={user} onLogout={handleLogout} />
-            ) : user.user_type === 'universidad' ? (
-              <UniversityDashboard user={user} onLogout={handleLogout} />
-            ) : user.user_type === 'junta_directiva' ? (
-              <JuntaDashboard user={user} onLogout={handleLogout} />
-            ) : user.user_type === 'escuela_formacion' ? (
-              <EscuelaFormacionDashboard user={user} onLogout={handleLogout} />
-            ) : user.user_type === 'admin' ? (
-              <AdminDashboard user={user} onLogout={handleLogout} />
-            ) : (
-              <Navigate to="/" replace />
-            )
-          ) : (
+          user && !needsRegistration ? (() => {
+            const Dashboard = dashboardComponents[user.user_type];
+            return Dashboard ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />;
+          })() : (
             <Navigate to="/" replace />
           )
         } />

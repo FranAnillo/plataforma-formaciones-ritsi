@@ -9,6 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
+import re
 from datetime import datetime, timezone, timedelta
 import requests
 from enum import Enum
@@ -23,6 +24,9 @@ db = client[os.environ['DB_NAME']]
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
+
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() in {"1", "true", "yes", "on"}
+COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "none" if COOKIE_SECURE else "lax")
 
 # Enums
 class UserType(str, Enum):
@@ -44,6 +48,7 @@ class FileType(str, Enum):
     VIDEO = "video"
     PDF = "pdf"
     IMAGE = "image"
+    PRESENTATION = "presentation"
 
 class ContentStatus(str, Enum):
     PENDING = "pending"
@@ -57,7 +62,6 @@ class User(BaseModel):
     name: str
     picture: Optional[str] = None
     user_type: UserType
-    thematic_commission_ids: List[str] = []
     is_active: bool = True
     university_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -220,6 +224,9 @@ class ThematicCommissionCreate(BaseModel):
 class AssignUsersToCommissionRequest(BaseModel):
     user_ids: List[str]
 
+class UpdateUserCommissionsRequest(BaseModel):
+    commission_ids: List[str] = []
+
 class AssignContentToZoneRequest(BaseModel):
     content_id: str
     zone: str
@@ -291,6 +298,34 @@ async def get_current_user(session_token: Optional[str] = Cookie(None)) -> User:
     
     return User(**user)
 
+async def user_can_access_content(content: Dict[str, Any], user: User) -> bool:
+    if user.user_type in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        return True
+
+    if content.get("created_by") == user.id:
+        return True
+
+    if (
+        content.get("status") == ContentStatus.PUBLISHED.value and
+        user.user_type in [UserType.UNIVERSIDAD, UserType.JUNTA_DIRECTIVA, UserType.COORDINADOR_TEMATICO, UserType.FORMADOR]
+    ):
+        return True
+
+    if content.get("status") != ContentStatus.PUBLISHED.value:
+        return False
+
+    if content.get("is_public"):
+        return True
+
+    assignment = await db.content_assignments.find_one({
+        "content_id": content["id"],
+        "$or": [
+            {"assigned_to_user_ids": user.id},
+            {"assigned_to_all_representatives": True}
+        ]
+    })
+    return assignment is not None
+
 # Auth endpoints
 @api_router.get("/auth/session")
 async def get_session(session_id: str):
@@ -325,8 +360,10 @@ async def get_session(session_id: str):
             user_dict["created_at"] = user_dict["created_at"].isoformat()
             await db.users.insert_one(user_dict)
             user_id = user.id
+            user_doc = user_dict
         else:
             user_id = existing_user["id"]
+            user_doc = existing_user
         
         # Create session
         session_token = user_data["session_token"]
@@ -343,19 +380,24 @@ async def get_session(session_id: str):
         session_dict["created_at"] = session_dict["created_at"].isoformat()
         await db.user_sessions.insert_one(session_dict)
         
-        response = JSONResponse(content={"success": True, "needs_registration": existing_user is None})
+        response = JSONResponse(content={
+            "success": True,
+            "needs_registration": not user_doc.get("university_id"),
+            "user": User(**user_doc).model_dump(mode="json")
+        })
         response.set_cookie(
             key="session_token",
             value=session_token,
             httponly=True,
-            secure=True,
-            samesite="none",
+            secure=COOKIE_SECURE,
+            samesite=COOKIE_SAMESITE,
             max_age=7*24*60*60,
             path="/"
         )
         
         return response
-        
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -441,7 +483,8 @@ async def update_user_status(user_id: str, request: UpdateUserStatusRequest, cur
         details={"status": "activado" if request.is_active else "desactivado"}
     )
     
-    return User(**user_to_update)
+    updated_user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    return User(**updated_user)
 
 @api_router.post("/users/import")
 async def import_users(request: UserImportRequest, current_user: User = Depends(get_current_user)):
@@ -517,6 +560,13 @@ async def delete_user(user_id: str, current_user: User = Depends(get_current_use
     # 4. Delete the user
     await db.users.delete_one({"id": user_id})
 
+@api_router.put("/users/{user_id}/commissions", response_model=User)
+async def update_user_commissions(user_id: str, request: UpdateUserCommissionsRequest, current_user: User = Depends(get_current_user)):
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Las vocalías no tienen representantes asociados"
+    )
+
 @api_router.get("/auth/me")
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
@@ -527,7 +577,7 @@ async def logout(session_token: Optional[str] = Cookie(None)):
         await db.user_sessions.delete_many({"session_token": session_token})
     
     response = JSONResponse(content={"success": True})
-    response.delete_cookie(key="session_token", path="/")
+    response.delete_cookie(key="session_token", path="/", secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE)
     return response
 
 # Activity Log endpoint
@@ -544,7 +594,7 @@ async def get_activity_log(current_user: User = Depends(get_current_user)):
 # Universities endpoints
 @api_router.get("/universities", response_model=List[University])
 async def get_universities():
-    universities = await db.universities.find({}, {"_id": 0}).to_list(1000)
+    universities = await db.universities.find({}, {"_id": 0}).sort("name", 1).to_list(1000)
     return [University(**u) for u in universities]
 
 @api_router.post("/universities", response_model=University)
@@ -587,7 +637,10 @@ async def update_university_status(university_id: str, request: UpdateUniversity
     if current_user.user_type != UserType.ADMIN:
         raise HTTPException(status_code=403, detail="No tienes permisos para cambiar el estado de una universidad")
 
-    await db.universities.update_one({"id": university_id}, {"$set": {"is_active": request.is_active}})
+    update_result = await db.universities.update_one({"id": university_id}, {"$set": {"is_active": request.is_active}})
+    if update_result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Universidad no encontrada")
+
     updated_university = await db.universities.find_one({"id": university_id}, {"_id": 0})
     return University(**updated_university)
 
@@ -603,26 +656,28 @@ async def delete_university(university_id: str, current_user: User = Depends(get
 
     await db.universities.delete_one({"id": university_id})
 
+@api_router.get("/vocalias", response_model=List[ThematicCommission])
 @api_router.get("/thematic-commissions", response_model=List[ThematicCommission])
 async def get_thematic_commissions(current_user: User = Depends(get_current_user)):
     commissions = await db.thematic_commissions.find({}, {"_id": 0}).to_list(1000)
     return [ThematicCommission(**c) for c in commissions]
 
+@api_router.post("/vocalias", response_model=ThematicCommission)
 @api_router.post("/thematic-commissions", response_model=ThematicCommission)
 async def create_thematic_commission(request: ThematicCommissionCreate, current_user: User = Depends(get_current_user)):
     if current_user.user_type != UserType.ADMIN:
-        raise HTTPException(status_code=403, detail="No tienes permisos para crear comisiones temáticas")
+        raise HTTPException(status_code=403, detail="No tienes permisos para crear vocalías")
 
-    existing_commission = await db.thematic_commissions.find_one({"name": {"$regex": f"^{request.name}$", "$options": "i"}})
+    existing_commission = await db.thematic_commissions.find_one({"name": {"$regex": f"^{re.escape(request.name)}$", "$options": "i"}})
     if existing_commission:
-        raise HTTPException(status_code=400, detail=f"La comisión temática '{request.name}' ya existe")
+        raise HTTPException(status_code=400, detail=f"La vocalía '{request.name}' ya existe")
 
     if request.coordinator_id:
         coordinator = await db.users.find_one({"id": request.coordinator_id})
         if not coordinator:
-            raise HTTPException(status_code=404, detail="Usuario coordinador no encontrado")
+            raise HTTPException(status_code=404, detail="Usuario responsable no encontrado")
         if coordinator.get("user_type") != UserType.COORDINADOR_TEMATICO.value:
-            raise HTTPException(status_code=400, detail="El usuario asignado debe tener el rol de Coordinador Temático")
+            raise HTTPException(status_code=400, detail="El usuario asignado debe tener el rol de Vocalía")
 
     commission = ThematicCommission(name=request.name, coordinator_id=request.coordinator_id)
     commission_dict = commission.model_dump()
@@ -630,17 +685,18 @@ async def create_thematic_commission(request: ThematicCommissionCreate, current_
     await db.thematic_commissions.insert_one(commission_dict)
     return commission
 
+@api_router.put("/vocalias/{commission_id}", response_model=ThematicCommission)
 @api_router.put("/thematic-commissions/{commission_id}", response_model=ThematicCommission)
 async def update_thematic_commission(commission_id: str, request: ThematicCommissionCreate, current_user: User = Depends(get_current_user)):
     if current_user.user_type != UserType.ADMIN:
-        raise HTTPException(status_code=403, detail="No tienes permisos para editar comisiones")
+        raise HTTPException(status_code=403, detail="No tienes permisos para editar vocalías")
 
     if request.coordinator_id:
         coordinator = await db.users.find_one({"id": request.coordinator_id})
         if not coordinator:
-            raise HTTPException(status_code=404, detail="Usuario coordinador no encontrado")
+            raise HTTPException(status_code=404, detail="Usuario responsable no encontrado")
         if coordinator.get("user_type") != UserType.COORDINADOR_TEMATICO.value:
-            raise HTTPException(status_code=400, detail="El usuario asignado debe tener el rol de Coordinador Temático")
+            raise HTTPException(status_code=400, detail="El usuario asignado debe tener el rol de Vocalía")
 
     update_data = request.model_dump(exclude_unset=True)
 
@@ -649,76 +705,33 @@ async def update_thematic_commission(commission_id: str, request: ThematicCommis
         {"$set": update_data}
     )
     if update_result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Comisión no encontrada")
+        raise HTTPException(status_code=404, detail="Vocalía no encontrada")
     
     updated_commission = await db.thematic_commissions.find_one({"id": commission_id}, {"_id": 0})
     return ThematicCommission(**updated_commission)
 
+@api_router.delete("/vocalias/{commission_id}")
 @api_router.delete("/thematic-commissions/{commission_id}")
 async def delete_thematic_commission(commission_id: str, current_user: User = Depends(get_current_user)):
     if current_user.user_type != UserType.ADMIN:
-        raise HTTPException(status_code=403, detail="No tienes permisos para eliminar comisiones")
+        raise HTTPException(status_code=403, detail="No tienes permisos para eliminar vocalías")
 
+    # Limpia asociaciones antiguas si existían antes del cambio de estructura.
     await db.users.update_many({}, {"$pull": {"thematic_commission_ids": commission_id}})
     
     delete_result = await db.thematic_commissions.delete_one({"id": commission_id})
     if delete_result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Comisión no encontrada")
+        raise HTTPException(status_code=404, detail="Vocalía no encontrada")
     
-    return {"message": "Comisión eliminada exitosamente"}
+    return {"message": "Vocalía eliminada exitosamente"}
 
+@api_router.put("/vocalias/{commission_id}/assign-users")
 @api_router.put("/thematic-commissions/{commission_id}/assign-users")
 async def assign_users_to_commission(commission_id: str, request: AssignUsersToCommissionRequest, current_user: User = Depends(get_current_user)):
-    commission = await db.thematic_commissions.find_one({"id": commission_id})
-    if not commission:
-        raise HTTPException(status_code=404, detail="Comisión no encontrada")
-
-    # Permission check
-    is_admin = current_user.user_type == UserType.ADMIN
-    is_coordinator_of_this_commission = (
-        current_user.user_type == UserType.COORDINADOR_TEMATICO and
-        current_user.id == commission.get("coordinator_id")
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Las vocalías no tienen representantes asociados"
     )
-
-    if not (is_admin or is_coordinator_of_this_commission):
-        raise HTTPException(status_code=403, detail="No tienes permisos para gestionar los miembros de esta comisión")
-
-    # --- Audit Log Logic ---
-    # Get current members to compare
-    current_members_cursor = db.users.find({"thematic_commission_ids": commission_id}, {"id": 1, "name": 1})
-    current_members_list = await current_members_cursor.to_list(length=None)
-    current_member_ids = {member['id'] for member in current_members_list}
-    
-    new_member_ids = set(request.user_ids)
-    
-    added_ids = new_member_ids - current_member_ids
-    removed_ids = current_member_ids - new_member_ids
-
-    # --- Database Operations ---
-    await db.users.update_many(
-        {"thematic_commission_ids": commission_id},
-        {"$pull": {"thematic_commission_ids": commission_id}}
-    )
-    if request.user_ids:
-        await db.users.update_many(
-            {"id": {"$in": request.user_ids}},
-            {"$addToSet": {"thematic_commission_ids": commission_id}} # Use $addToSet to avoid duplicates
-        )
-
-    # --- Log the activity ---
-    if added_ids or removed_ids:
-        all_involved_users = await db.users.find({"id": {"$in": list(added_ids | removed_ids)}}, {"id": 1, "name": 1}).to_list(length=None)
-        user_map = {user['id']: user['name'] for user in all_involved_users}
-
-        details = {
-            "commission_name": commission["name"],
-            "added": [user_map.get(uid, "Usuario desconocido") for uid in added_ids],
-            "removed": [user_map.get(uid, "Usuario desconocido") for uid in removed_ids]
-        }
-        # We log against the actor, as there's no single target user
-        await log_activity(actor=current_user, action="Gestión de comisión", target_user=current_user.model_dump(), details=details)
-
-    return {"message": "Asignación de representantes a la comisión actualizada exitosamente"}
 
 # Categories endpoints
 @api_router.get("/categories", response_model=List[Category])
@@ -735,7 +748,7 @@ async def create_category(request: CategoryCreate, current_user: User = Depends(
         )
 
     # Check if category already exists (case-insensitive)
-    existing_category = await db.categories.find_one({"name": {"$regex": f"^{request.name}$", "$options": "i"}})
+    existing_category = await db.categories.find_one({"name": {"$regex": f"^{re.escape(request.name)}$", "$options": "i"}})
     if existing_category:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -759,7 +772,7 @@ async def update_category(category_id: str, request: CategoryCreate, current_use
 
     # Check if another category with the same name exists (case-insensitive)
     existing_category = await db.categories.find_one({
-        "name": {"$regex": f"^{request.name}$", "$options": "i"},
+        "name": {"$regex": f"^{re.escape(request.name)}$", "$options": "i"},
         "id": {"$ne": category_id}
     })
     if existing_category:
@@ -793,7 +806,7 @@ async def delete_category(category_id: str, current_user: User = Depends(get_cur
 # Training Content endpoints
 @api_router.get("/content", response_model=List[TrainingContent])
 async def get_training_content(current_user: User = Depends(get_current_user)):
-    if current_user.user_type in [UserType.REPRESENTANTE, UserType.COLABORACION_EXTERNA, UserType.UNIVERSIDAD, UserType.JUNTA_DIRECTIVA, UserType.COORDINADOR_TEMATICO]:
+    if current_user.user_type in [UserType.REPRESENTANTE, UserType.COLABORACION_EXTERNA]:
         # Get assigned and public content
         content_ids = set()
 
@@ -808,18 +821,24 @@ async def get_training_content(current_user: User = Depends(get_current_user)):
             content_ids.add(a["content_id"])
 
         # Get public content IDs that are published
-        public_contents = await db.training_contents.find({"is_public": True, "status": ContentStatus.PUBLISHED}, {"id": 1}).to_list(1000)
+        public_contents = await db.training_contents.find({"is_public": True, "status": ContentStatus.PUBLISHED.value}, {"id": 1}).to_list(1000)
         for pc in public_contents:
             content_ids.add(pc["id"])
 
         contents = await db.training_contents.find(
-            {"id": {"$in": list(content_ids)}, "status": ContentStatus.PUBLISHED},
+            {"id": {"$in": list(content_ids)}, "status": ContentStatus.PUBLISHED.value},
             {"_id": 0}
         ).to_list(1000)
     elif current_user.user_type == UserType.FORMADOR:
         # Formadores see their own content + all published content
         contents = await db.training_contents.find(
-            {"$or": [{"created_by": current_user.id}, {"status": ContentStatus.PUBLISHED}]},
+            {"$or": [{"created_by": current_user.id}, {"status": ContentStatus.PUBLISHED.value}]},
+            {"_id": 0}
+        ).to_list(1000)
+    elif current_user.user_type in [UserType.UNIVERSIDAD, UserType.JUNTA_DIRECTIVA, UserType.COORDINADOR_TEMATICO]:
+        # Assignment roles can recommend or assign any published content
+        contents = await db.training_contents.find(
+            {"status": ContentStatus.PUBLISHED.value},
             {"_id": 0}
         ).to_list(1000)
     else:
@@ -885,6 +904,12 @@ async def get_training_content_by_id(content_id: str, current_user: User = Depen
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Contenido no encontrado"
         )
+
+    if not await user_can_access_content(content, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para acceder a este contenido"
+        )
     
     return TrainingContent(**content)
 
@@ -908,13 +933,13 @@ async def approve_content(content_id: str, current_user: User = Depends(get_curr
     if current_user.user_type not in [UserType.ESCUELA_FORMACION, UserType.ADMIN]:
         raise HTTPException(status_code=403, detail="No tienes permisos para aprobar contenido")
 
-    await db.training_contents.update_one({"id": content_id}, {"$set": {"status": ContentStatus.PUBLISHED}})
+    await db.training_contents.update_one({"id": content_id}, {"$set": {"status": ContentStatus.PUBLISHED.value}})
     updated_content = await db.training_contents.find_one({"id": content_id}, {"_id": 0})
     if not updated_content:
         raise HTTPException(status_code=404, detail="Contenido no encontrado")
     return TrainingContent(**updated_content)
 
-@api_router.post("/content/{content_id}/reject", response_model=TrainingContent)
+@api_router.post("/content/{content_id}/reject")
 async def reject_content(content_id: str, current_user: User = Depends(get_current_user)):
     # In a real app, you might want to change status to "rejected" or notify the creator.
     # For now, we'll just delete it for simplicity.
@@ -933,6 +958,12 @@ async def assign_content(request: AssignContentRequest, current_user: User = Dep
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Contenido no encontrado"
+        )
+
+    if content.get("status") != ContentStatus.PUBLISHED.value and current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se puede asignar contenido publicado"
         )
     
     # Check permissions
@@ -956,9 +987,15 @@ async def assign_content(request: AssignContentRequest, current_user: User = Dep
             {"id": {"$in": request.user_ids}},
             {"_id": 0}
         ).to_list(1000)
+
+        if len(users) != len(set(request.user_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Uno o más representantes no existen"
+            )
         
         for user in users:
-            if user.get("university_id") != current_user.university_id:
+            if user.get("user_type") != UserType.REPRESENTANTE.value or user.get("university_id") != current_user.university_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Solo puedes asignar contenido a representantes de tu universidad"
@@ -969,7 +1006,33 @@ async def assign_content(request: AssignContentRequest, current_user: User = Dep
             assigned_to_user_ids=request.user_ids or [],
             assigned_by=current_user.id
         )
-    elif current_user.user_type in [UserType.ESCUELA_FORMACION, UserType.ADMIN, UserType.COORDINADOR_TEMATICO]:
+    elif current_user.user_type == UserType.COORDINADOR_TEMATICO:
+        if not request.user_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Debes especificar representantes"
+            )
+
+        users = await db.users.find(
+            {
+                "id": {"$in": request.user_ids},
+                "user_type": UserType.REPRESENTANTE.value,
+                "is_active": True
+            },
+            {"_id": 0}
+        ).to_list(1000)
+        if len(users) != len(set(request.user_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Uno o más representantes no existen o están inactivos"
+            )
+
+        assignment = ContentAssignment(
+            content_id=request.content_id,
+            assigned_to_user_ids=request.user_ids or [],
+            assigned_by=current_user.id
+        )
+    elif current_user.user_type in [UserType.ESCUELA_FORMACION, UserType.ADMIN]:
         # Can assign to anyone
         assignment = ContentAssignment(
             content_id=request.content_id,
@@ -993,6 +1056,12 @@ async def assign_content(request: AssignContentRequest, current_user: User = Dep
 async def assign_content_to_zone(request: AssignContentToZoneRequest, current_user: User = Depends(get_current_user)):
     if current_user.user_type not in [UserType.ADMIN, UserType.ESCUELA_FORMACION]:
         raise HTTPException(status_code=403, detail="No tienes permisos para asignar contenido por zona")
+
+    content = await db.training_contents.find_one({"id": request.content_id}, {"_id": 0})
+    if not content:
+        raise HTTPException(status_code=404, detail="Contenido no encontrado")
+    if content.get("status") != ContentStatus.PUBLISHED.value:
+        raise HTTPException(status_code=400, detail="Solo se puede asignar contenido publicado")
 
     # 1. Find all universities in the given zone
     universities_in_zone = await db.universities.find({"zone": request.zone, "is_active": True}, {"id": 1}).to_list(None)
@@ -1061,7 +1130,7 @@ async def get_representatives(current_user: User = Depends(get_current_user)):
             },
             {"_id": 0}
         ).to_list(1000)
-    elif current_user.user_type in [UserType.JUNTA_DIRECTIVA, UserType.ESCUELA_FORMACION, UserType.ADMIN]:
+    elif current_user.user_type in [UserType.JUNTA_DIRECTIVA, UserType.ESCUELA_FORMACION, UserType.ADMIN, UserType.COORDINADOR_TEMATICO]:
         # Get all representatives
         users = await db.users.find(
             {"user_type": UserType.REPRESENTANTE},
@@ -1087,6 +1156,16 @@ async def get_my_progress(current_user: User = Depends(get_current_user)):
 
 @api_router.post("/progress/file-completed")
 async def mark_file_completed(request: MarkFileCompletedRequest, current_user: User = Depends(get_current_user)):
+    content = await db.training_contents.find_one({"id": request.content_id}, {"_id": 0})
+    if not content:
+        raise HTTPException(status_code=404, detail="Contenido no encontrado")
+
+    if not await user_can_access_content(content, current_user):
+        raise HTTPException(status_code=403, detail="No tienes permisos para acceder a este contenido")
+
+    if not any(file.get("id") == request.file_id for file in content.get("files", [])):
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+
     # Get or create progress
     progress = await db.user_progress.find_one(
         {"user_id": current_user.id, "content_id": request.content_id},
@@ -1127,6 +1206,9 @@ async def submit_quiz(request: SubmitQuizRequest, current_user: User = Depends(g
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Contenido no encontrado"
         )
+
+    if not await user_can_access_content(content, current_user):
+        raise HTTPException(status_code=403, detail="No tienes permisos para acceder a este contenido")
     
     # Find quiz
     quiz = None
@@ -1143,6 +1225,9 @@ async def submit_quiz(request: SubmitQuizRequest, current_user: User = Depends(g
     
     # Calculate score
     total_questions = len(quiz["questions"])
+    if total_questions == 0:
+        raise HTTPException(status_code=400, detail="El cuestionario no tiene preguntas")
+
     correct_answers = 0
     
     for question in quiz["questions"]:
@@ -1210,6 +1295,11 @@ async def submit_quiz(request: SubmitQuizRequest, current_user: User = Depends(g
         "total_questions": total_questions,
         "attempts": quiz_data["attempts"]
     }
+
+@api_router.get("/health")
+async def health_check():
+    await db.command("ping")
+    return {"status": "ok"}
 
 app.include_router(api_router)
 

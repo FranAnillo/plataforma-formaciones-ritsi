@@ -5,9 +5,9 @@ Esta es la plataforma para gestionar el contenido formativo de la **Reunión de 
 ## Características Principales
 
 ### 🎓 Múltiples Roles de Usuario
-- **Administrador**: Gestión completa de la plataforma, usuarios, universidades y comisiones.
+- **Administrador**: Gestión completa de la plataforma, usuarios, universidades y vocalías.
 - **Escuela de Formación**: Crea y valida contenidos formativos.
-- **Coordinador Temático**: Gestiona los miembros de una comisión temática y les asigna formaciones.
+- **Vocalía**: Área de trabajo con responsable, orientada a recomendar y asignar formaciones sin asociar representantes.
 - **Formador**: Crea contenido formativo que debe ser validado.
 - **Junta Directiva**: Asigna contenido a todos los representantes.
 - **Universidad**: Gestiona y asigna contenido a sus representantes.
@@ -16,8 +16,8 @@ Esta es la plataforma para gestionar el contenido formativo de la **Reunión de 
 
 
 ### 📚 Gestión de Contenidos
-- Contenidos formativos con videos, PDFs e imágenes alojados en Google Drive
-- URLs compartidas de Google Drive para acceso controlado
+- Contenidos formativos con videos, PDFs, imágenes y presentaciones alojados en Google Drive/Slides
+- URLs compartidas de Google Drive y Google Slides para acceso controlado
 - Descripción y organización de contenidos por temas
 - Flujo de validación: los contenidos creados por "Formadores" deben ser aprobados.
 - Contenidos públicos y privados.
@@ -37,7 +37,7 @@ Esta es la plataforma para gestionar el contenido formativo de la **Reunión de 
 
 ### 🏛️ Gestión de Entidades
 - **Universidades**: Creación, edición y desactivación de universidades, con asignación por zonas (I-V).
-- **Comisiones Temáticas**: Creación y gestión de comisiones, con asignación de un coordinador y miembros.
+- **Vocalías**: Creación y gestión de vocalías, con asignación de responsable y sin representantes asociados.
 
 
 ### 🔐 Autenticación
@@ -55,15 +55,34 @@ Esta es la plataforma para gestionar el contenido formativo de la **Reunión de 
 5 universidades de ejemplo están disponibles. Para poblar la base de datos con datos iniciales, puedes usar los siguientes scripts:
 
 ```bash
-# Crear universidades de ejemplo
-python3 /app/scripts/init_universities.py
+# Crear universidades de ejemplo en Docker
+docker compose run --rm scripts python scripts/init_universities.py
+
+# Sincronizar universidades españolas desde RUCT
+docker compose run --rm scripts python scripts/sync_spanish_universities.py
+
+# Asignar zonas RITSI a las universidades sincronizadas
+docker compose run --rm scripts python scripts/assign_ritsi_zones.py
 
 # Crear un nuevo usuario con un rol específico
-python3 /app/scripts/create_user.py "email@ejemplo.com" "Nombre Completo" "rol"
+docker compose run --rm scripts python scripts/create_user.py "email@ejemplo.com" "Nombre Completo" "rol"
 
 # Crear una nueva categoría
-python3 /app/scripts/create_category.py "Nombre de la Categoría"
+docker compose run --rm scripts python scripts/create_category.py "Nombre de la Categoría"
 ```
+
+## Despliegue con Docker
+
+1. Copia `.env.example` a `.env` y ajusta los valores necesarios.
+2. Levanta la plataforma:
+
+```bash
+docker compose up --build -d
+```
+
+3. Abre `http://localhost:3000`. El frontend sirve la build de React con Nginx y proxy `/api` hacia el backend.
+
+Para producción con dominios HTTPS separados, configura `CORS_ORIGINS`, `COOKIE_SECURE=true` y `COOKIE_SAMESITE=none`.
 
 # Diagrama del servicio:
 
@@ -87,7 +106,7 @@ graph TD
 
     subgraph "Servicios Externos"
         Auth["🔐 Google Auth (OAuth)"]
-        Drive["📄 Google Drive (Archivos)"]
+        Drive["📄 Google Drive/Slides (Archivos)"]
     end
 
     User -- HTTPS --> Frontend

@@ -1,35 +1,53 @@
 services:
   mongo:
     image: mongo:6
+    restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
-    image: iireenees012/ritsi-backend:1.0
+    build:
+      context: ./backend
+    restart: unless-stopped
     env_file:
       - .env
     environment:
       MONGO_URL: mongodb://mongo:27017
       DB_NAME: plataforma_formativa_ritsi
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      COOKIE_SECURE: "false"
+      COOKIE_SAMESITE: lax
     ports:
       - "8000:8000"
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
-    image: iireenees012/ritsi-frontend:1.0
-    environment:
-      REACT_APP_BACKEND_URL: http://localhost:8000
+    build:
+      context: ./frontend
+    restart: unless-stopped
     ports:
       - "3000:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
-  # 🔴 SERVICIO DE SCRIPTS
   scripts:
-    image: iireenees012/ritsi-backend:1.0
+    build:
+      context: ./backend
     env_file:
       - .env
     environment:
@@ -37,9 +55,12 @@ services:
       DB_NAME: plataforma_formativa_ritsi
       PYTHONPATH: /app
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
     working_dir: /app
     restart: "no"
+    profiles:
+      - tools
 
 volumes:
   mongo_data:

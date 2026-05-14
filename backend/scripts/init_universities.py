@@ -7,7 +7,8 @@ import os
 from pathlib import Path
 
 # Add backend to path
-backend_path = Path(__file__).parent.parent / 'backend'
+backend_path = Path(__file__).resolve().parent.parent
+project_root = backend_path.parent
 sys.path.insert(0, str(backend_path))
 
 from pymongo import MongoClient
@@ -16,7 +17,8 @@ import uuid
 
 # Load env
 from dotenv import load_dotenv
-load_dotenv(backend_path / '.env')
+load_dotenv(project_root / '.env')
+load_dotenv(backend_path / '.env', override=False)
 
 mongo_url = os.environ['MONGO_URL']
 db_name = os.environ['DB_NAME']
@@ -29,26 +31,36 @@ universities = [
     {
         "id": str(uuid.uuid4()),
         "name": "Universidad Complutense de Madrid",
+        "is_active": True,
+        "zone": "III",
         "created_at": datetime.now(timezone.utc).isoformat()
     },
     {
         "id": str(uuid.uuid4()),
         "name": "Universidad de Barcelona",
+        "is_active": True,
+        "zone": "II",
         "created_at": datetime.now(timezone.utc).isoformat()
     },
     {
         "id": str(uuid.uuid4()),
         "name": "Universidad de Sevilla",
+        "is_active": True,
+        "zone": "IV",
         "created_at": datetime.now(timezone.utc).isoformat()
     },
     {
         "id": str(uuid.uuid4()),
         "name": "Universidad de Valencia",
+        "is_active": True,
+        "zone": "II",
         "created_at": datetime.now(timezone.utc).isoformat()
     },
     {
         "id": str(uuid.uuid4()),
         "name": "Universidad Autónoma de Madrid",
+        "is_active": True,
+        "zone": "III",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
 ]

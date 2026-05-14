@@ -22,9 +22,11 @@ from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
 # Añadir el backend al path (coincide con create_user.py)
-backend_path = Path(__file__).parent.parent / "backend"
-# Cargar .env del backend
-load_dotenv(backend_path / ".env")
+backend_path = Path(__file__).resolve().parent.parent
+project_root = backend_path.parent
+# Cargar variables locales sin pisar las que ya vengan del entorno
+load_dotenv(project_root / ".env")
+load_dotenv(backend_path / ".env", override=False)
 
 async def list_users(mongo_url, db_name, role=None, email=None, limit=100):
     client = AsyncIOMotorClient(mongo_url)
@@ -71,11 +73,10 @@ def main():
     mongo_url = os.environ.get("MONGO_URL")
     db_name = os.environ.get("DB_NAME")
     if not mongo_url or not db_name:
-        print("Error: No se han encontrado MONGO_URL o DB_NAME en backend/.env")
+        print("Error: No se han encontrado MONGO_URL o DB_NAME en el entorno ni en .env")
         return
 
     asyncio.run(list_users(mongo_url, db_name, role=args.role, email=args.email, limit=args.limit))
 
 if __name__ == "__main__":
     main()
-

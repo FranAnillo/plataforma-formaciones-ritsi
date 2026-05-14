@@ -1,18 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, FileText, Image as ImageIcon, Video, AlertCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, FileText, Image as ImageIcon, Presentation, Video, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
 import { Progress } from '../components/ui/progress';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import { api } from '../services/api';
 
 export default function ContentViewer({ user }) {
   const { contentId } = useParams();
@@ -40,8 +37,8 @@ export default function ContentViewer({ user }) {
   const fetchData = async () => {
     try {
       const [contentRes, progressRes] = await Promise.all([
-        axios.get(`${API}/content/${contentId}`),
-        axios.get(`${API}/progress`)
+        api.get(`/content/${contentId}`),
+        api.get('/progress')
       ]);
       
       setContent(contentRes.data);
@@ -82,7 +79,7 @@ export default function ContentViewer({ user }) {
     const currentFile = content.files[currentFileIndex];
     
     try {
-      await axios.post(`${API}/progress/file-completed`, {
+      await api.post('/progress/file-completed', {
         content_id: contentId,
         file_id: currentFile.id
       });
@@ -90,7 +87,7 @@ export default function ContentViewer({ user }) {
       toast.success('¡Archivo marcado como completado!');
       
       // Refresh progress
-      const progressRes = await axios.get(`${API}/progress`);
+      const progressRes = await api.get('/progress');
       const prog = progressRes.data.find(p => p.content_id === contentId);
       setProgress(prog);
       
@@ -123,7 +120,7 @@ export default function ContentViewer({ user }) {
     
     setSubmittingQuiz(true);
     try {
-      const response = await axios.post(`${API}/progress/submit-quiz`, {
+      const response = await api.post('/progress/submit-quiz', {
         content_id: contentId,
         quiz_id: currentQuiz.id,
         answers: quizAnswers
@@ -133,7 +130,7 @@ export default function ContentViewer({ user }) {
         toast.success(`¡Aprobado! Puntuación: ${response.data.score.toFixed(1)}%`);
         
         // Refresh progress
-        const progressRes = await axios.get(`${API}/progress`);
+        const progressRes = await api.get('/progress');
         const prog = progressRes.data.find(p => p.content_id === contentId);
         setProgress(prog);
         
@@ -177,46 +174,85 @@ export default function ContentViewer({ user }) {
     return content.files.every(file => progress.files_completed?.includes(file.id));
   };
 
+  const totalProgressItems = content ? content.files.length + content.quizzes.length : 0;
+  const completedProgressItems = totalProgressItems
+    ? (progress?.files_completed?.length || 0) + Object.values(progress?.quizzes_completed || {}).filter(q => q.passed).length
+    : 0;
+  const overallProgress = totalProgressItems ? (completedProgressItems / totalProgressItems) * 100 : 0;
+
   const getFileIcon = (fileType) => {
     switch (fileType) {
       case 'video': return <Video className="w-5 h-5" />;
       case 'pdf': return <FileText className="w-5 h-5" />;
       case 'image': return <ImageIcon className="w-5 h-5" />;
+      case 'presentation': return <Presentation className="w-5 h-5" />;
       default: return <FileText className="w-5 h-5" />;
     }
   };
 
-  const renderFileEmbed = (file) => {
-    // Extract file ID from Google Drive URL
-    let fileId = '';
-    
-    if (file.google_drive_url.includes('/file/d/')) {
-      fileId = file.google_drive_url.split('/file/d/')[1].split('/')[0];
-    } else if (file.google_drive_url.includes('id=')) {
-      fileId = file.google_drive_url.split('id=')[1].split('&')[0];
+  const extractDriveFileId = (url = '') => {
+    if (url.includes('/file/d/')) {
+      return url.split('/file/d/')[1].split('/')[0];
     }
 
+    if (url.includes('id=')) {
+      return url.split('id=')[1].split('&')[0];
+    }
+
+    return '';
+  };
+
+  const extractPresentationId = (url = '') => {
+    const match = url.match(/\/presentation\/d\/([^/?#]+)/);
+    return match?.[1] || '';
+  };
+
+  const renderUnsupportedPreview = (file) => (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center dark:border-gray-700 dark:bg-gray-900">
+      <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+        No se puede previsualizar este recurso desde el visor.
+      </p>
+      <Button asChild variant="outline">
+        <a href={file.google_drive_url} target="_blank" rel="noreferrer">
+          Abrir recurso
+        </a>
+      </Button>
+    </div>
+  );
+
+  const renderFileEmbed = (file) => {
+    const fileId = extractDriveFileId(file.google_drive_url);
+    const presentationId = extractPresentationId(file.google_drive_url);
+
     if (file.file_type === 'video') {
+      if (!fileId) return renderUnsupportedPreview(file);
+
       return (
         <div className="aspect-video bg-black rounded-lg overflow-hidden">
           <iframe
             src={`https://drive.google.com/file/d/${fileId}/preview`}
             className="w-full h-full"
+            title={file.title}
             allow="autoplay"
             allowFullScreen
           />
         </div>
       );
     } else if (file.file_type === 'pdf') {
+      if (!fileId) return renderUnsupportedPreview(file);
+
       return (
         <div className="w-full h-[600px] bg-gray-100 rounded-lg overflow-hidden">
           <iframe
             src={`https://drive.google.com/file/d/${fileId}/preview`}
             className="w-full h-full"
+            title={file.title}
           />
         </div>
       );
     } else if (file.file_type === 'image') {
+      if (!fileId) return renderUnsupportedPreview(file);
+
       return (
         <div className="w-full bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center p-4">
           <img
@@ -227,7 +263,22 @@ export default function ContentViewer({ user }) {
           />
         </div>
       );
+    } else if (file.file_type === 'presentation') {
+      if (!presentationId) return renderUnsupportedPreview(file);
+
+      return (
+        <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden dark:bg-gray-900">
+          <iframe
+            src={`https://docs.google.com/presentation/d/${presentationId}/embed?start=false&loop=false&delayms=3000`}
+            className="w-full h-full"
+            title={file.title}
+            allowFullScreen
+          />
+        </div>
+      );
     }
+
+    return renderUnsupportedPreview(file);
   };
 
   if (loading) {
@@ -256,8 +307,8 @@ export default function ContentViewer({ user }) {
     <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
       {/* Header */}
       <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex justify-between items-center mb-2">
+        <div className="container mx-auto px-4 sm:px-6 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-2">
             <Button
               data-testid="back-button"
               onClick={() => navigate('/dashboard')}
@@ -269,24 +320,24 @@ export default function ContentViewer({ user }) {
             </Button>
             <ThemeToggleButton />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{content.title}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white break-words">{content.title}</h1>
           {content.description && (
             <p className="text-gray-600 dark:text-gray-400 mt-1">{content.description}</p>
           )}
         </div>
       </header>
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2">
             {currentSection === 'files' && currentFile && (
               <Card className="bg-white dark:bg-gray-800/50">
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  <CardTitle className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
                       {getFileIcon(currentFile.file_type)}
-                      {currentFile.title}
+                      <span className="break-words">{currentFile.title}</span>
                     </div>
                     {isFileCompleted(currentFile.id) && (
                       <CheckCircle className="w-6 h-6 text-green-600" />
@@ -335,7 +386,7 @@ export default function ContentViewer({ user }) {
                       {currentQuiz.questions.map((question, qIndex) => (
                         <Card key={question.id} className="bg-gray-50 dark:bg-gray-800">
                           <CardContent className="pt-6">
-                            <p className="font-medium text-gray-800 mb-4">
+                            <p className="font-medium text-gray-800 dark:text-gray-100 mb-4">
                               {qIndex + 1}. {question.question_text}
                             </p>
                             
@@ -511,16 +562,13 @@ export default function ContentViewer({ user }) {
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-gray-600 dark:text-gray-400">Total</span>
                     <span className="font-semibold">
-                      {(progress?.files_completed?.length || 0) + Object.values(progress?.quizzes_completed || {}).filter(q => q.passed).length}
+                      {completedProgressItems}
                       {' / '}
-                      {content.files.length + content.quizzes.length}
+                      {totalProgressItems}
                     </span>
                   </div>
                   <Progress
-                    value={(
-                      ((progress?.files_completed?.length || 0) + Object.values(progress?.quizzes_completed || {}).filter(q => q.passed).length) /
-                      (content.files.length + content.quizzes.length)
-                    ) * 100}
+                    value={overallProgress}
                     className="h-2"
                   />
                 </div>

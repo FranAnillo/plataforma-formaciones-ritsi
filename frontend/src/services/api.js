@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+export const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '');
+
 const API = axios.create({
-  baseURL: `${BACKEND_URL}/api`,
+  baseURL: BACKEND_URL ? `${BACKEND_URL}/api` : '/api',
   withCredentials: true, // Importante para que las cookies de sesión se envíen
 });
 

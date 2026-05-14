@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Textarea } from '../components/ui/textarea';
 import { Switch } from '../components/ui/switch';
-import { Checkbox } from '../components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import EscuelaFormacionDashboard from './EscuelaFormacionDashboard';
@@ -44,17 +43,16 @@ export default function AdminDashboard({ user, onLogout }) {
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [viewUserContent, setViewUserContent] = useState(null);
-  // Commission Management State
+  // Vocalia management state. Internally the legacy API still uses thematic-commissions.
   const [commissionSearchQuery, setCommissionSearchQuery] = useState('');
   const [commissionDialogOpen, setCommissionDialogOpen] = useState(false);
   const [editingCommission, setEditingCommission] = useState(null); // null for new, object for editing
   const [commissionName, setCommissionName] = useState('');
   const [commissionCoordinator, setCommissionCoordinator] = useState('');
-  const [assignMembersDialogOpen, setAssignMembersDialogOpen] = useState(null);
-  const [selectedMembers, setSelectedMembers] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   // University Management State
   const [universitySearchQuery, setUniversitySearchQuery] = useState('');
+  const [universityStatusFilter, setUniversityStatusFilter] = useState('all');
   const [universityDialogOpen, setUniversityDialogOpen] = useState(false);
   const [editingUniversity, setEditingUniversity] = useState(null);
   const [universityName, setUniversityName] = useState('');
@@ -89,7 +87,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
   useEffect(() => {
     setUniversityCurrentPage(1);
-  }, [universitySearchQuery, universitySort]);
+  }, [universitySearchQuery, universityStatusFilter, universitySort]);
 
   useEffect(() => {
     if (activeTab !== 'content') {
@@ -105,7 +103,7 @@ export default function AdminDashboard({ user, onLogout }) {
         '/universities',
         '/content',
         '/assignments',
-        '/thematic-commissions',
+        '/vocalias',
         '/activity-log'
       ]);
       
@@ -140,7 +138,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const getAssignedContentForUser = (userId) => {
     const assignedContentIds = new Set();
     assignments.forEach(a => {
-      if (a.assigned_to_all_representatives || a.assigned_to_user_ids.includes(userId)) {
+      if (a.assigned_to_all_representatives || a.assigned_to_user_ids?.includes(userId)) {
         assignedContentIds.add(a.content_id);
       }
     });
@@ -256,63 +254,41 @@ export default function AdminDashboard({ user, onLogout }) {
   const handleOpenCommissionDialog = (commission = null) => {
     setEditingCommission(commission);
     setCommissionName(commission ? commission.name : '');
-    setCommissionCoordinator(commission ? commission.coordinator_id || '' : '');
+    setCommissionCoordinator(commission ? commission.coordinator_id || '__NONE__' : '__NONE__');
     setCommissionDialogOpen(true);
   };
 
   const handleSaveCommission = async () => {
     if (!commissionName.trim()) {
-      toast.error('El nombre de la comisión es obligatorio.');
+      toast.error('El nombre de la vocalía es obligatorio.');
       return;
     }
     const url = editingCommission
-      ? `/thematic-commissions/${editingCommission.id}`
-      : '/thematic-commissions';
+      ? `/vocalias/${editingCommission.id}`
+      : '/vocalias';
     const method = editingCommission ? 'put' : 'post';
     const data = {
       name: commissionName,
-      coordinator_id: commissionCoordinator || null,
+      coordinator_id: commissionCoordinator === '__NONE__' ? null : commissionCoordinator,
     };
 
     try {
-      await apimethod;
-      toast.success(`Comisión ${editingCommission ? 'actualizada' : 'creada'} exitosamente.`);
+      await api[method](url, data);
+      toast.success(`Vocalía ${editingCommission ? 'actualizada' : 'creada'} exitosamente.`);
       setCommissionDialogOpen(false);
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al guardar la comisión.');
-    }
-  };
-
-  const handleOpenAssignMembersDialog = (commission) => {
-    const memberIds = users
-      .filter(u => u.thematic_commission_ids.includes(commission.id))
-      .map(u => u.id);
-    setSelectedMembers(memberIds);
-    setAssignMembersDialogOpen(commission);
-  };
-
-  const handleSaveMembers = async () => {
-    if (!assignMembersDialogOpen) return;
-    try {
-      await api.put(`/thematic-commissions/${assignMembersDialogOpen.id}/assign-users`, {
-        user_ids: selectedMembers,
-      });
-      toast.success('Miembros de la comisión actualizados.');
-      setAssignMembersDialogOpen(null);
-      fetchData();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al actualizar miembros.');
+      toast.error(error.response?.data?.detail || 'Error al guardar la vocalía.');
     }
   };
 
   const handleDeleteCommission = async (commissionId) => {
     try {
-      await api.delete(`/thematic-commissions/${commissionId}`);
-      toast.success('Comisión eliminada exitosamente.');
+      await api.delete(`/vocalias/${commissionId}`);
+      toast.success('Vocalía eliminada exitosamente.');
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al eliminar la comisión.');
+      toast.error(error.response?.data?.detail || 'Error al eliminar la vocalía.');
     }
   };
 
@@ -409,7 +385,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const indexOfLastUser = currentPage * usersPerPage;
   const indexOfFirstUser = indexOfLastUser - usersPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / usersPerPage));
 
   const indexOfLastCommission = commissionCurrentPage * commissionsPerPage;
   const indexOfFirstCommission = indexOfLastCommission - commissionsPerPage;
@@ -421,8 +397,8 @@ export default function AdminDashboard({ user, onLogout }) {
       const key = commissionSort.key;
       const direction = commissionSort.direction === 'asc' ? 1 : -1;
 
-      let valA = key === 'name' ? a.name.toLowerCase() : users.filter(u => u.thematic_commission_ids.includes(a.id)).length;
-      let valB = key === 'name' ? b.name.toLowerCase() : users.filter(u => u.thematic_commission_ids.includes(b.id)).length;
+      let valA = a.name.toLowerCase();
+      let valB = b.name.toLowerCase();
 
       if (valA < valB) {
         return -1 * direction;
@@ -433,10 +409,13 @@ export default function AdminDashboard({ user, onLogout }) {
       return 0;
     });
   const currentCommissions = filteredCommissions.slice(indexOfFirstCommission, indexOfLastCommission);
-  const totalCommissionPages = Math.ceil(filteredCommissions.length / commissionsPerPage);
+  const totalCommissionPages = Math.max(1, Math.ceil(filteredCommissions.length / commissionsPerPage));
 
   const sortedUniversities = universities
-    .filter(u => u.name.toLowerCase().includes(universitySearchQuery.toLowerCase()))
+    .filter(u =>
+      u.name.toLowerCase().includes(universitySearchQuery.toLowerCase()) &&
+      (universityStatusFilter === 'all' || u.is_active === (universityStatusFilter === 'active'))
+    )
     .sort((a, b) => {
       const key = universitySort.key;
       const direction = universitySort.direction === 'asc' ? 1 : -1;
@@ -457,7 +436,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const indexOfLastUniversity = universityCurrentPage * universitiesPerPage;
   const indexOfFirstUniversity = indexOfLastUniversity - universitiesPerPage;
   const currentUniversities = sortedUniversities.slice(indexOfFirstUniversity, indexOfLastUniversity);
-  const totalUniversityPages = Math.ceil(sortedUniversities.length / universitiesPerPage);
+  const totalUniversityPages = Math.max(1, Math.ceil(sortedUniversities.length / universitiesPerPage));
 
   const coordinatorCandidates = users.filter(u => u.user_type === 'coordinador_tematico' && u.is_active);
   const getUserName = (userId) => users.find(u => u.id === userId)?.name || 'Sin asignar';
@@ -481,13 +460,13 @@ export default function AdminDashboard({ user, onLogout }) {
       pageDescription="Gestión completa de la plataforma"
     >
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList>
+          <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="stats">Estadísticas</TabsTrigger>
             <TabsTrigger value="users">Gestión de Usuarios</TabsTrigger>
             <TabsTrigger value="content">Gestión de Contenidos</TabsTrigger>
             <TabsTrigger value="zones">Gestión de Zonas</TabsTrigger>
             <TabsTrigger value="universities">Universidades</TabsTrigger>
-            <TabsTrigger value="commissions">Comisiones</TabsTrigger>
+            <TabsTrigger value="commissions">Vocalías</TabsTrigger>
             <TabsTrigger value="activity">Registro de Actividad</TabsTrigger>
           </TabsList>
 
@@ -562,7 +541,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     <Users className="w-8 h-8 opacity-80" />
                     <span className="text-3xl font-bold">{stats.totalCommissions}</span>
                   </div>
-                  <p className="text-red-100">Comisiones Temáticas</p>
+                  <p className="text-red-100">Vocalías</p>
                 </CardContent>
               </Card>
               <Card className="bg-gradient-to-br from-[#da2724] to-[#e97c7a] text-white cursor-pointer hover:scale-105 transition-transform" onClick={() => handleStatCardClick('users', 'all', 'inactive')}>
@@ -593,15 +572,15 @@ export default function AdminDashboard({ user, onLogout }) {
                 <CardDescription>Gestiona los usuarios, sus roles y formaciones asignadas.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-4 mb-4">
+                <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-center">
                   <Input 
                     placeholder="Buscar por nombre o email..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="max-w-sm"
+                    className="w-full lg:max-w-sm"
                   />
                   <Select value={filterRole} onValueChange={setFilterRole}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-full lg:w-[180px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -612,7 +591,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     </SelectContent>
                   </Select>
                   <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-full lg:w-[180px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -621,7 +600,7 @@ export default function AdminDashboard({ user, onLogout }) {
                       <SelectItem value="inactive">Inactivo</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="ml-auto flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
                     <input
                       type="file"
                       ref={fileInputRef}
@@ -758,13 +737,29 @@ export default function AdminDashboard({ user, onLogout }) {
                 <CardDescription>Crea, edita y elimina las universidades de la plataforma.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="mb-4">
-                  <Input
-                    placeholder="Buscar universidad por nombre..."
-                    value={universitySearchQuery}
-                    onChange={(e) => setUniversitySearchQuery(e.target.value)}
-                    className="max-w-sm"
-                  />
+                <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+                  <div>
+                    <Label htmlFor="university-search" className="sr-only">Buscar universidad</Label>
+                    <Input
+                      id="university-search"
+                      placeholder="Buscar universidad por nombre..."
+                      value={universitySearchQuery}
+                      onChange={(e) => setUniversitySearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="university-status-filter" className="sr-only">Filtrar por estado</Label>
+                    <Select value={universityStatusFilter} onValueChange={setUniversityStatusFilter}>
+                      <SelectTrigger id="university-status-filter">
+                        <SelectValue placeholder="Estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos los estados</SelectItem>
+                        <SelectItem value="active">Activas</SelectItem>
+                        <SelectItem value="inactive">Inactivas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="border rounded-md">
                   <Table>
@@ -836,18 +831,18 @@ export default function AdminDashboard({ user, onLogout }) {
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div>
-                    <CardTitle>Gestión de Comisiones Temáticas</CardTitle>
-                    <CardDescription>Crea, edita y gestiona las comisiones y sus miembros.</CardDescription>
+                    <CardTitle>Gestión de Vocalías</CardTitle>
+                    <CardDescription>Crea y edita vocalías. No tienen representantes asociados.</CardDescription>
                   </div>
                   <Button onClick={() => handleOpenCommissionDialog()}>
-                    <Plus className="w-4 h-4 mr-2" /> Crear Comisión
+                    <Plus className="w-4 h-4 mr-2" /> Crear Vocalía
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="mb-4">
                   <Input
-                    placeholder="Buscar comisión por nombre..."
+                    placeholder="Buscar vocalía por nombre..."
                     value={commissionSearchQuery}
                     onChange={(e) => setCommissionSearchQuery(e.target.value)}
                     className="max-w-sm"
@@ -858,12 +853,9 @@ export default function AdminDashboard({ user, onLogout }) {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => handleCommissionSort('name')}>
-                          Comisión {commissionSort.key === 'name' && (commissionSort.direction === 'asc' ? <ArrowUp className="inline w-4 h-4 ml-1" /> : <ArrowDown className="inline w-4 h-4 ml-1" />)}
+                          Vocalía {commissionSort.key === 'name' && (commissionSort.direction === 'asc' ? <ArrowUp className="inline w-4 h-4 ml-1" /> : <ArrowDown className="inline w-4 h-4 ml-1" />)}
                         </TableHead>
-                        <TableHead>Coordinador/a</TableHead>
-                        <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => handleCommissionSort('members')}>
-                          Miembros {commissionSort.key === 'members' && (commissionSort.direction === 'asc' ? <ArrowUp className="inline w-4 h-4 ml-1" /> : <ArrowDown className="inline w-4 h-4 ml-1" />)}
-                        </TableHead>
+                        <TableHead>Responsable</TableHead>
                         <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -872,7 +864,6 @@ export default function AdminDashboard({ user, onLogout }) {
                         <TableRow key={commission.id}>
                           <TableCell className="font-medium">{commission.name}</TableCell>
                           <TableCell>{getUserName(commission.coordinator_id)}</TableCell>
-                          <TableCell>{users.filter(u => u.thematic_commission_ids.includes(commission.id)).length}</TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -882,8 +873,7 @@ export default function AdminDashboard({ user, onLogout }) {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleOpenAssignMembersDialog(commission)}>Gestionar Miembros</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleOpenCommissionDialog(commission)}>Editar Comisión</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleOpenCommissionDialog(commission)}>Editar Vocalía</DropdownMenuItem>
                                 <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteCommission(commission.id)}>Eliminar</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -895,7 +885,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 </div>
                 {thematicCommissions.length === 0 && (
                   <p className="text-center text-gray-500 py-8">
-                    No hay comisiones temáticas creadas.
+                    No hay vocalías creadas.
                   </p>
                 )}
                 <div className="flex items-center justify-end space-x-2 py-4">
@@ -947,7 +937,7 @@ export default function AdminDashboard({ user, onLogout }) {
                             {log.details?.status && `Usuario ${log.details.status}`}
                             {log.details?.commission_name && (
                               <div>
-                                <div>Comisión: <strong>{log.details.commission_name}</strong></div>
+                                <div>Vocalía: <strong>{log.details.commission_name}</strong></div>
                                 {log.details.added?.length > 0 && <div className="text-green-600">Añadidos: {log.details.added.join(', ')}</div>}
                                 {log.details.removed?.length > 0 && <div className="text-red-600">Eliminados: {log.details.removed.join(', ')}</div>}
                               </div>
@@ -992,34 +982,34 @@ export default function AdminDashboard({ user, onLogout }) {
           </DialogContent>
         </Dialog>
 
-        {/* Create/Edit Commission Dialog */}
+        {/* Create/Edit Vocalia Dialog */}
         <Dialog open={commissionDialogOpen} onOpenChange={setCommissionDialogOpen}>
           <DialogContent className="bg-white dark:bg-gray-900">
             <DialogHeader>
-              <DialogTitle>{editingCommission ? 'Editar' : 'Crear'} Comisión Temática</DialogTitle>
+              <DialogTitle>{editingCommission ? 'Editar' : 'Crear'} Vocalía</DialogTitle>
             </DialogHeader>
             <div className="py-4 space-y-4">
               <div>
-                <Label htmlFor="commission-name">Nombre de la Comisión</Label>
+                <Label htmlFor="commission-name">Nombre de la Vocalía</Label>
                 <Input id="commission-name" value={commissionName} onChange={(e) => setCommissionName(e.target.value)} />
               </div>
               <div>
-                <Label htmlFor="commission-coordinator">Coordinador/a</Label>
+                <Label htmlFor="commission-coordinator">Responsable</Label>
                 <Select value={commissionCoordinator} onValueChange={setCommissionCoordinator}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar coordinador/a" />
+                    <SelectValue placeholder="Seleccionar responsable" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sin asignar</SelectItem>
+                    <SelectItem value="__NONE__">Sin asignar</SelectItem>
                     {coordinatorCandidates.map(user => (
                       <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">Solo se muestran usuarios con el rol 'Coordinador Temático'.</p>
+                <p className="text-xs text-muted-foreground mt-1">Solo se muestran usuarios con el rol 'Vocalía'.</p>
               </div>
             </div>
-            <Button onClick={handleSaveCommission} className="w-full">{editingCommission ? 'Guardar Cambios' : 'Crear Comisión'}</Button>
+            <Button onClick={handleSaveCommission} className="w-full">{editingCommission ? 'Guardar Cambios' : 'Crear Vocalía'}</Button>
           </DialogContent>
         </Dialog>
 
@@ -1081,36 +1071,6 @@ export default function AdminDashboard({ user, onLogout }) {
           </DialogContent>
         </Dialog>
 
-        {/* Assign Members Dialog */}
-        <Dialog open={!!assignMembersDialogOpen} onOpenChange={() => setAssignMembersDialogOpen(null)}>
-          <DialogContent className="max-w-lg bg-white dark:bg-gray-900">
-            <DialogHeader>
-              <DialogTitle>Gestionar Miembros de "{assignMembersDialogOpen?.name}"</DialogTitle>
-            </DialogHeader>
-            <div className="py-4 space-y-2 max-h-96 overflow-y-auto">
-              {users
-                .filter(u => 
-                  u.is_active && // Must be active
-                  u.id !== assignMembersDialogOpen?.coordinator_id // Cannot be the coordinator of this commission
-                ).map(rep => (
-                <div key={rep.id} className="flex items-center space-x-3 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <Checkbox
-                    id={`member-rep-${rep.id}`}
-                    checked={selectedMembers.includes(rep.id)}
-                    onCheckedChange={(checked) => {
-                      const newSelection = checked
-                        ? [...selectedMembers, rep.id]
-                        : selectedMembers.filter(id => id !== rep.id);
-                      setSelectedMembers(newSelection);
-                    }}
-                  />
-                  <Label htmlFor={`member-rep-${rep.id}`} className="cursor-pointer flex-1">{rep.name}</Label>
-                </div>
-              ))}
-            </div>
-            <Button onClick={handleSaveMembers} className="w-full">Guardar Miembros</Button>
-          </DialogContent>
-        </Dialog>
     </DashboardLayout>
   );
 }
