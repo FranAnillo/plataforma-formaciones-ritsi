@@ -1,12 +1,22 @@
+import { useEffect, useState } from 'react';
 import { ArrowRight, Award, BookOpen, GraduationCap, Users } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import logo from '../static/1710_Isotipo_Degradado.png';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
+import { BACKEND_URL, api } from '../services/api';
 
-const REDIRECT_URL = `${window.location.origin}/`;
-const AUTH_URL = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(REDIRECT_URL)}`;
+const AUTH_URL = `${BACKEND_URL || ''}/api/auth/google/login`;
+const DEV_AUTH_URL = `${BACKEND_URL || ''}/api/auth/dev-login`;
 
 export default function Landing() {
+  const [authConfig, setAuthConfig] = useState({ dev_login_enabled: false });
+
+  useEffect(() => {
+    api.get('/auth/config')
+      .then((response) => setAuthConfig(response.data))
+      .catch(() => setAuthConfig({ dev_login_enabled: false }));
+  }, []);
+
   return (
     <div className="app-page min-h-screen overflow-hidden text-gray-800 dark:text-gray-200" style={{ fontFamily: 'Exo, sans-serif' }}>
       {/* Header */}
@@ -55,6 +65,17 @@ export default function Landing() {
               Comenzar ahora
               <ArrowRight className="h-4 w-4" />
             </Button>
+            {authConfig.dev_login_enabled && (
+              <Button
+                data-testid="dev-login-button"
+                onClick={() => window.location.href = DEV_AUTH_URL}
+                size="lg"
+                variant="outline"
+                className="border-gray-300 bg-white/70 text-gray-700 hover:bg-white dark:border-gray-700 dark:bg-gray-900/70 dark:text-gray-200 dark:hover:bg-gray-900"
+              >
+                Entrar en modo desarrollo
+              </Button>
+            )}
           </div>
           <div className="mx-auto mt-10 grid max-w-3xl grid-cols-3 gap-3 text-left">
             <HeroMetric value="8" label="roles" />

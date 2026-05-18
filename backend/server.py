@@ -1,10 +1,11 @@
 from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, Cookie
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import secrets
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Dict, Any
@@ -13,6 +14,9 @@ import re
 from datetime import datetime, timezone, timedelta
 import requests
 from enum import Enum
+from urllib.parse import urlencode
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -27,6 +31,16 @@ api_router = APIRouter(prefix="/api")
 
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() in {"1", "true", "yes", "on"}
 COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "none" if COOKIE_SECURE else "lax")
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "").strip()
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+GOOGLE_OAUTH_STATE_COOKIE = "google_oauth_state"
+ENABLE_DEV_LOGIN = os.environ.get("ENABLE_DEV_LOGIN", "false").lower() in {"1", "true", "yes", "on"}
+DEV_LOGIN_EMAIL = os.environ.get("DEV_LOGIN_EMAIL", "dev@local.test").strip()
+DEV_LOGIN_NAME = os.environ.get("DEV_LOGIN_NAME", "Usuario de desarrollo").strip()
+DEV_LOGIN_ROLE = os.environ.get("DEV_LOGIN_ROLE", "admin").strip()
+DEV_LOGIN_UNIVERSITY_ID = os.environ.get("DEV_LOGIN_UNIVERSITY_ID", "dev-local").strip() or "dev-local"
 
 # Enums
 class UserType(str, Enum):
@@ -59,6 +73,7 @@ class User(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     email: str
+    google_sub: Optional[str] = None
     name: str
     picture: Optional[str] = None
     user_type: UserType
@@ -327,82 +342,266 @@ async def user_can_access_content(content: Dict[str, Any], user: User) -> bool:
     return assignment is not None
 
 # Auth endpoints
-@api_router.get("/auth/session")
-async def get_session(session_id: str):
-    """Process session_id from Emergent Auth and create user session"""
-    try:
-        response = requests.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
-            headers={"X-Session-ID": session_id}
-        )
-        
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Sesión inválida"
-            )
-        
-        user_data = response.json()
-        
-        # Check if user exists
-        existing_user = await db.users.find_one({"email": user_data["email"]}, {"_id": 0})
-        
-        if not existing_user:
-            # Create new user with default type (needs registration)
-            user = User(
-                email=user_data["email"],
-                name=user_data["name"],
-                picture=user_data.get("picture"),
-                user_type=UserType.REPRESENTANTE,
-                university_id=None
-            )
-            user_dict = user.model_dump()
-            user_dict["created_at"] = user_dict["created_at"].isoformat()
-            await db.users.insert_one(user_dict)
-            user_id = user.id
-            user_doc = user_dict
-        else:
-            user_id = existing_user["id"]
-            user_doc = existing_user
-        
-        # Create session
-        session_token = user_data["session_token"]
-        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-        
-        session = UserSession(
-            user_id=user_id,
-            session_token=session_token,
-            expires_at=expires_at
-        )
-        
-        session_dict = session.model_dump()
-        session_dict["expires_at"] = session_dict["expires_at"].isoformat()
-        session_dict["created_at"] = session_dict["created_at"].isoformat()
-        await db.user_sessions.insert_one(session_dict)
-        
-        response = JSONResponse(content={
-            "success": True,
-            "needs_registration": not user_doc.get("university_id"),
-            "user": User(**user_doc).model_dump(mode="json")
-        })
-        response.set_cookie(
-            key="session_token",
-            value=session_token,
-            httponly=True,
-            secure=COOKIE_SECURE,
-            samesite=COOKIE_SAMESITE,
-            max_age=7*24*60*60,
-            path="/"
-        )
-        
-        return response
-    except HTTPException:
-        raise
-    except Exception as e:
+def ensure_google_oauth_config() -> None:
+    missing = [
+        name for name, value in {
+            "GOOGLE_CLIENT_ID": GOOGLE_CLIENT_ID,
+            "GOOGLE_CLIENT_SECRET": GOOGLE_CLIENT_SECRET,
+            "GOOGLE_REDIRECT_URI": GOOGLE_REDIRECT_URI,
+        }.items()
+        if not value
+    ]
+    if missing:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error procesando sesión: {str(e)}"
+            detail=f"Faltan variables de Google OAuth: {', '.join(missing)}"
         )
+
+
+def dev_login_enabled() -> bool:
+    return ENABLE_DEV_LOGIN and not COOKIE_SECURE
+
+
+async def create_user_session(user_doc: Dict[str, Any]) -> str:
+    session_token = secrets.token_urlsafe(32)
+    session = UserSession(
+        user_id=user_doc["id"],
+        session_token=session_token,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7)
+    )
+    session_dict = session.model_dump()
+    session_dict["expires_at"] = session_dict["expires_at"].isoformat()
+    session_dict["created_at"] = session_dict["created_at"].isoformat()
+    await db.user_sessions.insert_one(session_dict)
+    return session_token
+
+
+async def create_local_session_from_google_profile(profile: Dict[str, Any]) -> tuple[Dict[str, Any], str]:
+    email = profile.get("email")
+    google_sub = profile.get("sub")
+    if not google_sub:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google no devolvió un identificador de usuario válido"
+        )
+
+    if not email or not profile.get("email_verified"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google no ha verificado el correo del usuario"
+        )
+
+    existing_user = await db.users.find_one({"google_sub": google_sub}, {"_id": 0})
+
+    if not existing_user:
+        existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+        if existing_user and not existing_user.get("google_sub"):
+            await db.users.update_one(
+                {"id": existing_user["id"]},
+                {"$set": {"google_sub": google_sub}}
+            )
+            existing_user["google_sub"] = google_sub
+
+    if not existing_user:
+        user = User(
+            email=email,
+            google_sub=google_sub,
+            name=profile.get("name") or email,
+            picture=profile.get("picture"),
+            user_type=UserType.REPRESENTANTE,
+            university_id=None
+        )
+        user_doc = user.model_dump()
+        user_doc["created_at"] = user_doc["created_at"].isoformat()
+        await db.users.insert_one(user_doc)
+    else:
+        user_doc = existing_user
+
+    session_token = await create_user_session(user_doc)
+    return user_doc, session_token
+
+
+@api_router.get("/auth/config")
+async def get_auth_config():
+    """Expose safe, public information so the frontend can render auth options."""
+    return {
+        "google_login_enabled": all([GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI]),
+        "dev_login_enabled": dev_login_enabled(),
+    }
+
+
+@api_router.get("/auth/dev-login")
+async def start_dev_login():
+    """Create a local dev session while real OAuth is being configured."""
+    if not dev_login_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No encontrado")
+
+    try:
+        dev_user_type = UserType(DEV_LOGIN_ROLE)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"DEV_LOGIN_ROLE inválido: {DEV_LOGIN_ROLE}"
+        )
+
+    user_doc = await db.users.find_one({"email": DEV_LOGIN_EMAIL}, {"_id": 0})
+    if not user_doc:
+        user = User(
+            email=DEV_LOGIN_EMAIL,
+            name=DEV_LOGIN_NAME,
+            user_type=dev_user_type,
+            university_id=DEV_LOGIN_UNIVERSITY_ID
+        )
+        user_doc = user.model_dump()
+        user_doc["created_at"] = user_doc["created_at"].isoformat()
+        await db.users.insert_one(user_doc)
+    else:
+        await db.users.update_one(
+            {"id": user_doc["id"]},
+            {"$set": {
+                "name": DEV_LOGIN_NAME,
+                "user_type": dev_user_type.value,
+                "university_id": DEV_LOGIN_UNIVERSITY_ID,
+                "is_active": True,
+            }}
+        )
+        user_doc.update({
+            "name": DEV_LOGIN_NAME,
+            "user_type": dev_user_type.value,
+            "university_id": DEV_LOGIN_UNIVERSITY_ID,
+            "is_active": True,
+        })
+
+    session_token = await create_user_session(user_doc)
+    response = RedirectResponse(
+        url=f"{FRONTEND_URL}/",
+        status_code=status.HTTP_303_SEE_OTHER
+    )
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=7 * 24 * 60 * 60,
+        path="/"
+    )
+    return response
+
+
+@api_router.get("/auth/google/login")
+async def start_google_login():
+    """Start Google OAuth using credentials owned by this deployment."""
+    ensure_google_oauth_config()
+
+    state = secrets.token_urlsafe(32)
+    auth_params = urlencode({
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "prompt": "select_account",
+    })
+
+    response = RedirectResponse(
+        url=f"https://accounts.google.com/o/oauth2/v2/auth?{auth_params}",
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT
+    )
+    response.set_cookie(
+        key=GOOGLE_OAUTH_STATE_COOKIE,
+        value=state,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite="lax",
+        max_age=10 * 60,
+        path="/api/auth/google"
+    )
+    return response
+
+
+@api_router.get("/auth/google/callback")
+async def finish_google_login(
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+    stored_state: Optional[str] = Cookie(None, alias=GOOGLE_OAUTH_STATE_COOKIE),
+):
+    """Exchange Google's authorization code for a local session cookie."""
+    ensure_google_oauth_config()
+
+    if error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Google OAuth rechazó el inicio de sesión: {error}"
+        )
+
+    if not code or not state or not stored_state or not secrets.compare_digest(state, stored_state):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Estado OAuth inválido"
+        )
+
+    token_response = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": GOOGLE_REDIRECT_URI,
+            "grant_type": "authorization_code",
+        },
+        timeout=10
+    )
+
+    if token_response.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No se pudo validar la autorización con Google"
+        )
+
+    token_payload = token_response.json()
+    raw_id_token = token_payload.get("id_token")
+    if not raw_id_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google no devolvió un token de identidad"
+        )
+
+    try:
+        profile = id_token.verify_oauth2_token(
+            raw_id_token,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de Google inválido"
+        )
+
+    _, session_token = await create_local_session_from_google_profile(profile)
+
+    response = RedirectResponse(
+        url=f"{FRONTEND_URL}/",
+        status_code=status.HTTP_303_SEE_OTHER
+    )
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=7 * 24 * 60 * 60,
+        path="/"
+    )
+    response.delete_cookie(
+        key=GOOGLE_OAUTH_STATE_COOKIE,
+        path="/api/auth/google",
+        secure=COOKIE_SECURE,
+        samesite="lax"
+    )
+    return response
 
 @api_router.post("/auth/register")
 async def register_user(request: RegisterRequest, current_user: User = Depends(get_current_user)):

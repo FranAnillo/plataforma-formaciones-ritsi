@@ -55,7 +55,30 @@
   "scripts": {
     "start": "craco start",
     "build": "craco build",
-    "test": "craco test"
+    "test": "craco test --watchAll=false --coverage"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1",
+      "^react-router-dom$": "<rootDir>/node_modules/react-router-dom/dist/index.js",
+      "^react-router$": "<rootDir>/node_modules/react-router/dist/development/index.js",
+      "^react-router/dom$": "<rootDir>/node_modules/react-router/dist/development/dom-export.js"
+    },
+    "collectCoverageFrom": [
+      "src/App.js",
+      "src/components/DashboardLayout.jsx",
+      "src/components/LoadingSpinner.jsx",
+      "src/components/ThemeToggleButton.jsx",
+      "src/hooks/**/*.js",
+      "src/pages/**/*.jsx",
+      "src/services/**/*.js",
+      "src/utils/**/*.js",
+      "!src/pages/FormadorDashboard.jsx"
+    ],
+    "coverageReporters": [
+      "text",
+      "text-summary"
+    ]
   },
   "browserslist": {
     "production": [
@@ -73,14 +96,17 @@
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@craco/craco": "^5.9.0",
     "@eslint/js": "9.23.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "autoprefixer": "^10.4.20",
+    "cra-template": "1.2.0",
     "dotenv": "^16.6.1",
     "eslint": "^9.39.1",
     "eslint-plugin-import": "2.31.0",
     "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react": "7.37.4",
     "globals": "15.15.0",
-    "cra-template": "1.2.0",
     "postcss": "^8.4.49",
     "react-scripts": "5.0.1",
     "tailwindcss": "^3.4.17"

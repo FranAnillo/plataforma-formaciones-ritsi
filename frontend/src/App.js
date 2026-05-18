@@ -25,17 +25,6 @@ const dashboardComponents = {
   admin: AdminDashboard,
 };
 
-const getSessionIdFromUrl = () => {
-  const searchSessionId = new URLSearchParams(window.location.search).get('session_id');
-  if (searchSessionId) return searchSessionId;
-
-  const hash = window.location.hash.replace(/^#/, '');
-  if (!hash) return null;
-
-  const hashQuery = hash.includes('?') ? hash.split('?')[1] : hash;
-  return new URLSearchParams(hashQuery).get('session_id');
-};
-
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -46,13 +35,6 @@ function App() {
   }, []);
 
   const checkSession = async () => {
-    const sessionId = getSessionIdFromUrl();
-    if (sessionId) {
-      await processSessionId(sessionId);
-      window.history.replaceState({}, document.title, window.location.pathname);
-      return;
-    }
-
     // Check existing session
     try {
       const response = await api.get('/auth/me');
@@ -64,29 +46,6 @@ function App() {
       }
     } catch (error) {
       // No active session: keep the public landing page.
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const processSessionId = async (sessionId) => {
-    try {
-      const response = await api.get('/auth/session', {
-        params: { session_id: sessionId },
-      });
-
-      setNeedsRegistration(Boolean(response.data.needs_registration));
-
-      if (response.data.user) {
-        setUser(response.data.user);
-      } else {
-        const userResponse = await api.get('/auth/me');
-        setUser(userResponse.data);
-      }
-    } catch (error) {
-      console.error('Error procesando sesión:', error);
-      setUser(null);
-      setNeedsRegistration(false);
     } finally {
       setLoading(false);
     }
@@ -136,7 +95,7 @@ function App() {
         <Route path="/dashboard" element={
           user && !needsRegistration ? (() => {
             const Dashboard = dashboardComponents[user.user_type];
-            return Dashboard ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />;
+            return Dashboard ? <Dashboard user={user} onLogout={handleLogout} /> : <Landing />;
           })() : (
             <Navigate to="/" replace />
           )

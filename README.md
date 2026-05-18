@@ -41,9 +41,8 @@ Esta es la plataforma para gestionar el contenido formativo de la **Reunión de 
 
 
 ### 🔐 Autenticación
-- Google OAuth a través de Emergent Auth
+- Google OAuth 2.0 directo con credenciales propias de Google Cloud
 - Registro libre con asociación a universidad
-- Integración directa con **Google OAuth 2.0** para un inicio de sesión seguro.
 
 ## Tecnologías
 
@@ -74,6 +73,29 @@ docker compose run --rm scripts python scripts/create_category.py "Nombre de la 
 ## Despliegue con Docker
 
 1. Copia `.env.example` a `.env` y ajusta los valores necesarios.
+   Para el login con Google, rellena:
+
+   ```bash
+   FRONTEND_URL=http://localhost:3000
+   GOOGLE_CLIENT_ID=...
+   GOOGLE_CLIENT_SECRET=...
+   GOOGLE_REDIRECT_URI=http://localhost:8000/api/auth/google/callback
+   ```
+
+   En Google Cloud crea un cliente OAuth de tipo **Web application** y registra exactamente el mismo `GOOGLE_REDIRECT_URI`.
+   Si vas a usar un dominio propio en producción, añade y verifica el dominio raíz en la configuración de OAuth de Google y cambia `FRONTEND_URL` y `GOOGLE_REDIRECT_URI` a las URLs públicas reales.
+
+   Mientras configuras OAuth en local, puedes activar un acceso temporal de desarrollo:
+
+   ```bash
+   ENABLE_DEV_LOGIN=true
+   DEV_LOGIN_EMAIL=dev@local.test
+   DEV_LOGIN_NAME="Usuario de desarrollo"
+   DEV_LOGIN_ROLE=admin
+   DEV_LOGIN_UNIVERSITY_ID=dev-local
+   ```
+
+   Ese botón solo aparece si lo habilitas expresamente y se bloquea cuando `COOKIE_SECURE=true`; no lo actives en producción.
 2. Levanta la plataforma:
 
 ```bash
