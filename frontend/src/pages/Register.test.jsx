@@ -5,18 +5,6 @@ import { toast } from 'sonner';
 
 jest.mock('../services/api', () => ({ api: { get: jest.fn(), post: jest.fn() } }));
 jest.mock('sonner', () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
-jest.mock('../components/ui/select', () => ({
-  Select: ({ children, onValueChange, value }) => (
-    <select aria-label="universidad" value={value} onChange={(event) => onValueChange(event.target.value)}>
-      <option value="">Selecciona</option>
-      {children}
-    </select>
-  ),
-  SelectTrigger: ({ children }) => <>{children}</>,
-  SelectValue: () => null,
-  SelectContent: ({ children }) => <>{children}</>,
-  SelectItem: ({ children, value }) => <option value={value}>{children}</option>,
-}));
 
 describe('Register', () => {
   const user = { email: 'ana@example.com', name: 'Ana' };
@@ -34,12 +22,34 @@ describe('Register', () => {
     expect(api.post).not.toHaveBeenCalled();
   });
 
+  it('filters universities with text so the list is manageable', async () => {
+    api.get.mockResolvedValue({
+      data: [
+        ...Array.from({ length: 9 }, (_, index) => ({ id: `uni-${index}`, name: `Universidad ${index}` })),
+        { id: 'complutense', name: 'Universidad Complutense de Madrid' },
+        { id: 'valencia', name: 'Universitat de València' },
+      ],
+    });
+
+    render(<Register user={user} onComplete={jest.fn()} />);
+
+    expect(await screen.findByText(/Mostrando 8 de 11 universidades/)).toBeInTheDocument();
+    expect(screen.queryByText('Universidad Complutense de Madrid')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('university-search-input'), { target: { value: 'complu' } });
+    expect(screen.getByText('Universidad Complutense de Madrid')).toBeInTheDocument();
+    expect(screen.queryByText('Universidad 0')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('university-search-input'), { target: { value: 'valencia' } });
+    expect(screen.getByText('Universitat de València')).toBeInTheDocument();
+  });
+
   it('loads universities and completes registration', async () => {
     const onComplete = jest.fn();
     api.get.mockResolvedValue({ data: [{ id: 'uni', name: 'Universidad' }] });
     api.post.mockResolvedValue({ data: {} });
     render(<Register user={user} onComplete={onComplete} />);
-    fireEvent.change(await screen.findByLabelText('universidad'), { target: { value: 'uni' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Universidad' }));
     fireEvent.change(screen.getByTestId('name-input'), { target: { value: 'Ana Nueva' } });
     fireEvent.submit(screen.getByTestId('register-form'));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/auth/register', {

@@ -3,7 +3,7 @@ import { GraduationCap, Building2, User } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import UniversitySearchSelect from '../components/UniversitySearchSelect';
 import { toast } from 'sonner';
 import { api } from '../services/api';
 
@@ -81,22 +81,15 @@ export default function Register({ user, onComplete }) {
           </div>
 
           <div>
-            <Label htmlFor="university" className="mb-2 flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200">
+            <Label htmlFor="university-search" className="mb-2 flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200">
               <Building2 className="w-4 h-4" />
               Universidad
             </Label>
-            <Select value={universityId} onValueChange={setUniversityId} required>
-              <SelectTrigger data-testid="university-select" className="mt-2">
-                <SelectValue placeholder="Selecciona tu universidad" />
-              </SelectTrigger>
-              <SelectContent>
-                {universities.map((uni) => (
-                  <SelectItem key={uni.id} value={uni.id}>
-                    {uni.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <UniversitySearchSelect
+              universities={universities}
+              value={universityId}
+              onChange={setUniversityId}
+            />
           </div>
 
           <Button
