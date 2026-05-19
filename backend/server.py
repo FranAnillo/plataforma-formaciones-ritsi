@@ -19,6 +19,8 @@ from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
 ROOT_DIR = Path(__file__).parent
+PROJECT_ROOT = ROOT_DIR.parent
+load_dotenv(PROJECT_ROOT / '.env')
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
