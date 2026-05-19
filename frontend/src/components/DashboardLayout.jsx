@@ -4,7 +4,7 @@ import logo from '../static/1710_Isotipo_Degradado.png';
 import { ThemeToggleButton } from './ThemeToggleButton';
 import { roleNames } from '../utils/roles';
 
-export default function DashboardLayout({ user, onLogout, pageTitle, pageDescription, children }) {
+export default function DashboardLayout({ user, onLogout, pageTitle, pageDescription, pageActions, children }) {
   return (
     <div className="app-page min-h-screen text-gray-800 transition-colors duration-300 ease-in-out dark:text-gray-200" style={{ fontFamily: 'Exo, sans-serif' }}>
       <header className="sticky top-0 z-50 border-b border-gray-200/80 bg-white/90 shadow-sm backdrop-blur-md dark:border-gray-800 dark:bg-gray-950/85">
@@ -22,7 +22,7 @@ export default function DashboardLayout({ user, onLogout, pageTitle, pageDescrip
               <User className="h-4 w-4 text-gray-600 dark:text-gray-400" />
               <span className="truncate text-sm font-medium">{user.name}</span>
             </div>
-            <Button onClick={onLogout} variant="ghost" size="sm" className="min-w-10 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-300">
+            <Button data-testid="logout-button" onClick={onLogout} variant="ghost" size="sm" className="min-w-10 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-300">
               <LogOut className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Cerrar sesión</span>
             </Button>
@@ -32,9 +32,12 @@ export default function DashboardLayout({ user, onLogout, pageTitle, pageDescrip
 
       <main className="container mx-auto px-4 py-6 sm:px-6 sm:py-8">
         {pageTitle && (
-          <div className="mb-6 sm:mb-8">
-            <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-gray-950 sm:text-3xl dark:text-white">{pageTitle}</h2>
-            {pageDescription && <p className="max-w-3xl text-sm leading-6 text-gray-600 sm:text-base dark:text-gray-400">{pageDescription}</p>}
+          <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-gray-950 sm:text-3xl dark:text-white">{pageTitle}</h2>
+              {pageDescription && <p className="max-w-3xl text-sm leading-6 text-gray-600 sm:text-base dark:text-gray-400">{pageDescription}</p>}
+            </div>
+            {pageActions && <div className="shrink-0">{pageActions}</div>}
           </div>
         )}
         {children}

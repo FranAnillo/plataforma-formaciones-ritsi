@@ -104,7 +104,9 @@ Como recomendación, abrir una terminal nueva de la usada para el backend
 
 ### 📌 2. Instalar dependencias
 
-<pre class="overflow-visible! px-0!" data-start="2078" data-end="2107"><div class="contain-inline-size rounded-2xl corner-superellipse/1.1 relative bg-token-sidebar-surface-primary"><div class="sticky top-9"><div class="absolute end-0 bottom-0 flex h-9 items-center pe-2"><div class="bg-token-bg-elevated-secondary text-token-text-secondary flex items-center gap-4 rounded-sm px-2 font-sans text-xs"></div></div></div><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-powershell"><span><span>npm install
+<pre class="overflow-visible! px-0!" data-start="2078" data-end="2107"><div class="contain-inline-size rounded-2xl corner-superellipse/1.1 relative bg-token-sidebar-surface-primary"><div class="sticky top-9"><div class="absolute end-0 bottom-0 flex h-9 items-center pe-2"><div class="bg-token-bg-elevated-secondary text-token-text-secondary flex items-center gap-4 rounded-sm px-2 font-sans text-xs"></div></div></div><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-powershell"><span><span>corepack enable
+corepack prepare pnpm@9.15.9 --activate
+pnpm install --frozen-lockfile
 </span></span></code></div></div></pre>
 
 ---
@@ -120,7 +122,7 @@ En `frontend/.env` añade:
 
 ### 📌 4. Iniciar el frontend
 
-<pre class="overflow-visible! px-0!" data-start="2260" data-end="2287"><div class="contain-inline-size rounded-2xl corner-superellipse/1.1 relative bg-token-sidebar-surface-primary"><div class="sticky top-9"><div class="absolute end-0 bottom-0 flex h-9 items-center pe-2"><div class="bg-token-bg-elevated-secondary text-token-text-secondary flex items-center gap-4 rounded-sm px-2 font-sans text-xs"></div></div></div><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-powershell"><span><span>npm </span><span>start</span><span>
+<pre class="overflow-visible! px-0!" data-start="2260" data-end="2287"><div class="contain-inline-size rounded-2xl corner-superellipse/1.1 relative bg-token-sidebar-surface-primary"><div class="sticky top-9"><div class="absolute end-0 bottom-0 flex h-9 items-center pe-2"><div class="bg-token-bg-elevated-secondary text-token-text-secondary flex items-center gap-4 rounded-sm px-2 font-sans text-xs"></div></div></div><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-powershell"><span><span>pnpm </span><span>start</span><span>
 </span></span></code></div></div></pre>
 
 La aplicación estará disponible en:

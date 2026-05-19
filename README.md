@@ -2,6 +2,10 @@
 
 Esta es la plataforma para gestionar el contenido formativo de la **Reunión de Estudiantes de Ingenierías Técnicas y Superiores en Informática (RITSI)**. Una plataforma completa para gestionar contenidos formativos, cuestionarios y seguimiento del progreso de los representantes universitarios de RITSI.
 
+## Barrido técnico y roadmap
+
+Se ha añadido un barrido del servicio con componentes extraídos y propuesta priorizada de incrementos funcionales en [`docs/barrido-servicio-y-roadmap.md`](docs/barrido-servicio-y-roadmap.md).
+
 ## Características Principales
 
 ### 🎓 Múltiples Roles de Usuario
