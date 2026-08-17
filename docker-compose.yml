@@ -8,6 +8,7 @@ services:
 
   backend:
     image: iireenees012/ritsi-backend:1.0
+    platform: linux/amd64
     env_file:
       - .env
     environment:

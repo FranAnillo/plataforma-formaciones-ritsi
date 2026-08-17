@@ -22,8 +22,26 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 app = FastAPI()
-api_router = APIRouter(prefix="/api")
 
+# --- INICIO DE CORRECCIÓN CORS ---
+origins = [
+    "http://localhost:3000",    # React / Next.js local
+    "http://localhost:8080",    # Vue / otro local
+    "https://tu-dominio-frontend.com",
+    "http://150.214.142.23:3000" # Tu frontend en producción
+    # "*",                      # Descomenta esto solo si quieres permitir TODO (inseguro en prod)
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,      # Qué dominios pueden hacer peticiones
+    allow_credentials=True,     # Permitir cookies/tokens
+    allow_methods=["*"],        # Permitir todos los métodos (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],        # Permitir todos los headers
+)
+# --- FIN DE CORRECCIÓN CORS ---
+
+api_router = APIRouter(prefix="/api")
 # Enums
 class UserType(str, Enum):
     REPRESENTANTE = "representante"
@@ -348,8 +366,8 @@ async def get_session(session_id: str):
             key="session_token",
             value=session_token,
             httponly=True,
-            secure=True,
-            samesite="none",
+            secure=False,
+            samesite="lax",
             max_age=7*24*60*60,
             path="/"
         )

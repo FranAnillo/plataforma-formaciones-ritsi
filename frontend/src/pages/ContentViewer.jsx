@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, FileText, Image as ImageIcon, Video, AlertCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, FileText, Image as ImageIcon, Video, AlertCircle, ChevronsUpDown } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
@@ -10,6 +10,7 @@ import { Progress } from '../components/ui/progress';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { ThemeToggleButton } from '../components/ThemeToggleButton';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../components/ui/collapsible';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -27,6 +28,7 @@ export default function ContentViewer({ user }) {
   const [quizAnswers, setQuizAnswers] = useState({});
   const [loading, setLoading] = useState(true);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -209,7 +211,7 @@ export default function ContentViewer({ user }) {
       );
     } else if (file.file_type === 'pdf') {
       return (
-        <div className="w-full h-[600px] bg-gray-100 rounded-lg overflow-hidden">
+        <div className="w-full h-[400px] sm:h-[600px] bg-gray-100 rounded-lg overflow-hidden">
           <iframe
             src={`https://drive.google.com/file/d/${fileId}/preview`}
             className="w-full h-full"
@@ -252,11 +254,104 @@ export default function ContentViewer({ user }) {
   const currentFile = content.files[currentFileIndex];
   const currentQuiz = content.quizzes[currentQuizIndex];
 
+  const ProgressSidebar = () => (
+    <Card className="bg-white dark:bg-gray-800/50">
+      <CardHeader>
+        <CardTitle className="text-lg">Progreso</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Files Progress */}
+        <div>
+          <h3 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-2">Archivos</h3>
+          <div className="space-y-2">
+            {content.files.map((file, index) => (
+              <button
+                key={file.id}
+                onClick={() => {
+                  setCurrentSection('files');
+                  setCurrentFileIndex(index);
+                }}
+                className={`w-full text-left p-3 rounded-lg transition-all ${
+                  currentSection === 'files' && currentFileIndex === index
+                    ? 'bg-red-100 dark:bg-red-500/20 border-2 border-red-400 dark:border-red-500'
+                    : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border-2 border-transparent'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {getFileIcon(file.file_type)}
+                    <span className="text-sm font-medium truncate">{file.title}</span>
+                  </div>
+                  {isFileCompleted(file.id) && (
+                    <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Quizzes Progress */}
+        {content.quizzes.length > 0 && (
+          <div>
+            <h3 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-2">Cuestionarios</h3>
+            <div className="space-y-2">
+              {content.quizzes.map((quiz, index) => (
+                <button
+                  key={quiz.id}
+                  onClick={() => {
+                    if (canAccessQuizzes()) {
+                      setCurrentSection('quiz');
+                      setCurrentQuizIndex(index);
+                    }
+                  }}
+                  disabled={!canAccessQuizzes()}
+                  className={`w-full text-left p-3 rounded-lg transition-all ${
+                    currentSection === 'quiz' && currentQuizIndex === index
+                      ? 'bg-red-100 dark:bg-red-500/20 border-2 border-red-400 dark:border-red-500'
+                      : canAccessQuizzes()
+                      ? 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border-2 border-transparent'
+                      : 'bg-gray-100 dark:bg-gray-800 opacity-50 cursor-not-allowed border-2 border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium truncate">{quiz.title}</span>
+                    {isQuizPassed(quiz.id) && (
+                      <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Overall Progress */}
+        <div className="pt-4 border-t">
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-gray-600 dark:text-gray-400">Total</span>
+            <span className="font-semibold">
+              {(progress?.files_completed?.length || 0) + Object.values(progress?.quizzes_completed || {}).filter(q => q.passed).length}
+              {' / '}
+              {content.files.length + content.quizzes.length}
+            </span>
+          </div>
+          <Progress
+            value={(
+              ((progress?.files_completed?.length || 0) + Object.values(progress?.quizzes_completed || {}).filter(q => q.passed).length) /
+              (content.files.length + content.quizzes.length)
+            ) * 100}
+            className="h-2"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
-      {/* Header */}
       <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-4 sm:px-6 py-4">
           <div className="flex justify-between items-center mb-2">
             <Button
               data-testid="back-button"
@@ -264,19 +359,33 @@ export default function ContentViewer({ user }) {
               variant="ghost"
               className="hover:bg-gray-100 dark:hover:bg-gray-800"
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Volver al Dashboard
+              <ArrowLeft className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Volver al Dashboard</span>
             </Button>
             <ThemeToggleButton />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{content.title}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{content.title}</h1>
           {content.description && (
-            <p className="text-gray-600 dark:text-gray-400 mt-1">{content.description}</p>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">{content.description}</p>
           )}
         </div>
       </header>
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-4 sm:px-6 py-8">
+        <div className="lg:hidden mb-6">
+          <Collapsible open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full justify-between">
+                <span>{isMobileNavOpen ? 'Ocultar Progreso' : 'Mostrar Progreso'}</span>
+                <ChevronsUpDown className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="py-4">
+              <ProgressSidebar />
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2">
@@ -434,98 +543,10 @@ export default function ContentViewer({ user }) {
           </div>
 
           {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <Card className="sticky top-24 bg-white dark:bg-gray-800/50">
-              <CardHeader>
-                <CardTitle className="text-lg">Progreso</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Files Progress */}
-                <div>
-                  <h3 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-2">Archivos</h3>
-                  <div className="space-y-2">
-                    {content.files.map((file, index) => (
-                      <button
-                        key={file.id}
-                        onClick={() => {
-                          setCurrentSection('files');
-                          setCurrentFileIndex(index);
-                        }}
-                        className={`w-full text-left p-3 rounded-lg transition-all ${
-                          currentSection === 'files' && currentFileIndex === index
-                            ? 'bg-red-100 dark:bg-red-500/20 border-2 border-red-400 dark:border-red-500'
-                            : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border-2 border-transparent'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {getFileIcon(file.file_type)}
-                            <span className="text-sm font-medium truncate">{file.title}</span>
-                          </div>
-                          {isFileCompleted(file.id) && (
-                            <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Quizzes Progress */}
-                {content.quizzes.length > 0 && (
-                  <div>
-                    <h3 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-2">Cuestionarios</h3>
-                    <div className="space-y-2">
-                      {content.quizzes.map((quiz, index) => (
-                        <button
-                          key={quiz.id}
-                          onClick={() => {
-                            if (canAccessQuizzes()) {
-                              setCurrentSection('quiz');
-                              setCurrentQuizIndex(index);
-                            }
-                          }}
-                          disabled={!canAccessQuizzes()}
-                          className={`w-full text-left p-3 rounded-lg transition-all ${
-                            currentSection === 'quiz' && currentQuizIndex === index
-                              ? 'bg-red-100 dark:bg-red-500/20 border-2 border-red-400 dark:border-red-500'
-                              : canAccessQuizzes()
-                              ? 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border-2 border-transparent'
-                              : 'bg-gray-100 dark:bg-gray-800 opacity-50 cursor-not-allowed border-2 border-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium truncate">{quiz.title}</span>
-                            {isQuizPassed(quiz.id) && (
-                              <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Overall Progress */}
-                <div className="pt-4 border-t">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-600 dark:text-gray-400">Total</span>
-                    <span className="font-semibold">
-                      {(progress?.files_completed?.length || 0) + Object.values(progress?.quizzes_completed || {}).filter(q => q.passed).length}
-                      {' / '}
-                      {content.files.length + content.quizzes.length}
-                    </span>
-                  </div>
-                  <Progress
-                    value={(
-                      ((progress?.files_completed?.length || 0) + Object.values(progress?.quizzes_completed || {}).filter(q => q.passed).length) /
-                      (content.files.length + content.quizzes.length)
-                    ) * 100}
-                    className="h-2"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+          <div className="hidden lg:block lg:col-span-1">
+            <div className="sticky top-24">
+              <ProgressSidebar />
+            </div>
           </div>
         </div>
       </div>
