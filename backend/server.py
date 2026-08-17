@@ -1,5 +1,5 @@
-from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, Cookie
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, Cookie, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -12,6 +12,8 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import requests
 from enum import Enum
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -20,6 +22,19 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# OAuth configuration
+from authlib.integrations.starlette_client import OAuth
+import httpx
+
+oauth = OAuth()
+oauth.register(
+    name='google',
+    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'}
+)
 
 app = FastAPI()
 
@@ -251,6 +266,9 @@ class UserImport(BaseModel):
 class UserImportRequest(BaseModel):
     users: List[UserImport]
 
+class GoogleLoginRequest(BaseModel):
+    token: str
+
 
 class MarkFileCompletedRequest(BaseModel):
     content_id: str
@@ -310,74 +328,76 @@ async def get_current_user(session_token: Optional[str] = Cookie(None)) -> User:
     return User(**user)
 
 # Auth endpoints
-@api_router.get("/auth/session")
-async def get_session(session_id: str):
-    """Process session_id from Emergent Auth and create user session"""
+@api_router.get("/auth/google/login")
+async def google_login(request: Request):
+    """Initiate Google OAuth flow"""
+    redirect_uri = request.url_for('google_callback')
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
+@api_router.get("/auth/google/callback")
+async def google_callback(request: Request):
+    """Handle Google OAuth callback"""
     try:
-        response = requests.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
-            headers={"X-Session-ID": session_id}
-        )
-        
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Sesión inválida"
-            )
-        
-        user_data = response.json()
+        token = await oauth.google.authorize_access_token(request)
+        user_data = token.get('userinfo')
         
         # Check if user exists
         existing_user = await db.users.find_one({"email": user_data["email"]}, {"_id": 0})
         
         if not existing_user:
-            # Create new user with default type (needs registration)
+            # Create new user
             user = User(
-                email=user_data["email"],
-                name=user_data["name"],
-                picture=user_data.get("picture"),
+                email=email,
+                name=name,
+                picture=picture,
                 user_type=UserType.REPRESENTANTE,
-                university_id=None
+                university_id=None # El usuario deberá registrar su universidad después
             )
             user_dict = user.model_dump()
             user_dict["created_at"] = user_dict["created_at"].isoformat()
             await db.users.insert_one(user_dict)
             user_id = user.id
         else:
+            # Si el usuario ya existe, usamos su ID
             user_id = existing_user["id"]
         
         # Create session
-        session_token = user_data["session_token"]
+        session_token = str(uuid.uuid4())
         expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-        
+
         session = UserSession(
             user_id=user_id,
             session_token=session_token,
             expires_at=expires_at
         )
-        
+
         session_dict = session.model_dump()
         session_dict["expires_at"] = session_dict["expires_at"].isoformat()
         session_dict["created_at"] = session_dict["created_at"].isoformat()
         await db.user_sessions.insert_one(session_dict)
         
-        response = JSONResponse(content={"success": True, "needs_registration": existing_user is None})
+        # Redirect to frontend with session
+        frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+        response = RedirectResponse(url=f"{frontend_url}/#session_id={session_token}")
         response.set_cookie(
             key="session_token",
             value=session_token,
             httponly=True,
-            secure=False,
+            secure=False,  # Set to True in production with HTTPS
             samesite="lax",
             max_age=7*24*60*60,
             path="/"
         )
-        
+
         return response
-        
+
+    except ValueError as e:
+        # El token no es válido
+        raise HTTPException(status_code=401, detail=f"Token de Google inválido: {e}")
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error procesando sesión: {str(e)}"
+            detail=f"Error processing session: {str(e)}"
         )
 
 @api_router.post("/auth/register")

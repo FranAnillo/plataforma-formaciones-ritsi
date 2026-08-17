@@ -41,7 +41,7 @@ function App() {
     try {
       const response = await axios.get(`${API}/auth/me`);
       setUser(response.data);
-      
+
       // Check if needs registration
       if (!response.data.university_id) {
         setNeedsRegistration(true);
@@ -55,17 +55,16 @@ function App() {
 
   const processSessionId = async (sessionId) => {
     try {
-      const response = await axios.get(`${API}/auth/session?session_id=${sessionId}`);
-      
-      if (response.data.needs_registration) {
-        setNeedsRegistration(true);
-      }
-      
-      // Get user data
+      // Session is already created by backend, just get user data
       const userResponse = await axios.get(`${API}/auth/me`);
       setUser(userResponse.data);
+
+      // Check if needs registration
+      if (!userResponse.data.university_id) {
+        setNeedsRegistration(true);
+      }
     } catch (error) {
-      console.error('Error procesando sesión:', error);
+      console.error('Error fetching user:', error);
     } finally {
       setLoading(false);
     }
@@ -107,7 +106,7 @@ function App() {
             <Landing />
           )
         } />
-        
+
         <Route path="/register" element={
           user && needsRegistration ? (
             <Register user={user} onComplete={() => {
@@ -118,7 +117,7 @@ function App() {
             <Navigate to="/" replace />
           )
         } />
-        
+
         <Route path="/dashboard" element={
           user && !needsRegistration ? (
             user.user_type === 'representante' ? (
@@ -138,7 +137,7 @@ function App() {
             <Navigate to="/" replace />
           )
         } />
-        
+
         <Route path="/content/:contentId" element={
           user && !needsRegistration ? (
             <ContentViewer user={user} onLogout={handleLogout} />

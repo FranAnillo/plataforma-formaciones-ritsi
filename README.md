@@ -86,7 +86,7 @@ graph TD
     end
 
     subgraph "Servicios Externos"
-        Auth["🔐 Google Auth (OAuth)"]
+        Auth["🔐 Google Auth (OAuth 2.0)"]
         Drive["📄 Google Drive (Archivos)"]
     end
 
