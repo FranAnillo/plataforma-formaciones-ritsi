@@ -1,98 +1,69 @@
-# Gestión de Formaciones de RITSI
+# Plataforma Formativa RITSI
 
-Esta es la plataforma para gestionar el contenido formativo de la **Reunión de Estudiantes de Ingenierías Técnicas y Superiores en Informática (RITSI)**. Una plataforma completa para gestionar contenidos formativos, cuestionarios y seguimiento del progreso de los representantes universitarios de RITSI.
+Aplicación para consultar, crear, asignar y seguir la formación interna de RITSI. Incluye un catálogo histórico sincronizado con el registro oficial, gestión de Vocalías, composición protegida de Junta Directiva y una interfaz adaptable a móvil, tableta y escritorio.
 
-## Características Principales
+## Perfiles
 
-### 🎓 Múltiples Roles de Usuario
-- **Administrador**: Gestión completa de la plataforma, usuarios, universidades y comisiones.
-- **Escuela de Formación**: Crea y valida contenidos formativos.
-- **Coordinador Temático**: Gestiona los miembros de una comisión temática y les asigna formaciones.
-- **Formador**: Crea contenido formativo que debe ser validado.
-- **Junta Directiva**: Asigna contenido a todos los representantes.
-- **Universidad**: Gestiona y asigna contenido a sus representantes.
-- **Representante**: Accede y completa los contenidos formativos.
-- **Colaboración Externa**: Accede a contenidos públicos.
+- Administración: usuarios, universidades, Junta Directiva, Vocalías, catálogo e importación.
+- Junta Directiva: publicación de formaciones y gestión de las Vocalías que tenga asignadas.
+- Persona formadora: creación de contenidos sujetos a revisión.
+- Universidad: consulta y asignación dentro de su ámbito.
+- Representante y colaboración externa: acceso a formaciones publicadas y seguimiento personal.
 
+## Junta Directiva y Vocalías
 
-### 📚 Gestión de Contenidos
-- Contenidos formativos con videos, PDFs e imágenes alojados en Google Drive
-- URLs compartidas de Google Drive para acceso controlado
-- Descripción y organización de contenidos por temas
-- Flujo de validación: los contenidos creados por "Formadores" deben ser aprobados.
-- Contenidos públicos y privados.
-- Organización por categorías.
+La Junta se configura de forma atómica con cinco cargos obligatorios: Presidencia, Vicepresidencia de Política Universitaria, Tesorería, Secretaría y Vicepresidencia de Comunicación. Admite hasta dos miembros adicionales. Cada Vocalía se vincula a una persona activa de Junta y puede incorporar a cualquier conjunto de miembros activos.
 
-### ✅ Sistema de Cuestionarios
-- Tres tipos de preguntas: Verdadero/Falso, Opción Múltiple (una respuesta), Opción Múltiple (varias respuestas)
-- Mínimo preestablecido 70% de aciertos para aprobar aunque es personalizable
-- Reintentos ilimitados hasta aprobar
+## Universidades
 
-### 📊 Seguimiento de Progreso
-- Marcado de archivos como completados
-- Solo se puede acceder a cuestionarios después de completar todos los archivos
-- Progreso en tiempo real
-- Visualización del progreso individual por contenido.
-- Acceso condicional a cuestionarios tras completar los archivos.
+La administración puede sincronizar el listado publicado en `https://ritsi.org/socios/`. Se conservan universidad, siglas, comunidad autónoma, zona, centro y enlaces. Una universidad activa se considera socia de RITSI; una universidad inactiva se considera no socia y no está disponible para nuevos registros.
 
-### 🏛️ Gestión de Entidades
-- **Universidades**: Creación, edición y desactivación de universidades, con asignación por zonas (I-V).
-- **Comisiones Temáticas**: Creación y gestión de comisiones, con asignación de un coordinador y miembros.
+## Catálogo oficial
 
+El backend importa la hoja configurada mediante `FORMATIONS_SHEET_ID`. La sincronización conserva código, curso, fecha, audiencia, duración, asistencia, valoración, etiquetas, personas formadoras y las URLs de los recursos. El proceso es idempotente: actualiza registros existentes y evita duplicados.
 
-### 🔐 Autenticación
-- Google OAuth a través de Emergent Auth
-- Registro libre con asociación a universidad
-- Integración directa con **Google OAuth 2.0** para un inicio de sesión seguro.
-
-## Tecnologías
-
-**Backend**: FastAPI, MongoDB, Motor, Pydantic
-**Frontend**: React 19, React Router, Axios, Shadcn/UI, Tailwind CSS
-
-## Inicialización
-
-5 universidades de ejemplo están disponibles. Para poblar la base de datos con datos iniciales, puedes usar los siguientes scripts:
+## Puesta en marcha con Docker
 
 ```bash
-# Crear universidades de ejemplo
-python3 /app/scripts/init_universities.py
-
-# Crear un nuevo usuario con un rol específico
-python3 /app/scripts/create_user.py "email@ejemplo.com" "Nombre Completo" "rol"
-
-# Crear una nueva categoría
-python3 /app/scripts/create_category.py "Nombre de la Categoría"
+docker compose up --build
 ```
 
-# Diagrama del servicio:
+- Frontend: `http://localhost:3000`
+- API: `http://localhost:8000/api`
+- Salud: `http://localhost:8000/api/health`
 
-## Arquitectura
+Variables principales:
 
-La plataforma sigue una arquitectura cliente-servidor desacoplada, utilizando React para el frontend y FastAPI para el backend.
- 
-```mermaid
-graph TD
-    subgraph "Usuario Final"
-        User["👤 Usuario"]
-    end
+- `MONGO_URL` y `DB_NAME`
+- `CORS_ORIGINS`
+- `COOKIE_SECURE` (`true` en producción con HTTPS)
+- `FORMATIONS_SHEET_ID`
+- `AUTO_IMPORT_FORMATIONS` (`true` para cargar el catálogo si está vacío)
 
-    subgraph "Infraestructura Frontend"
-        Frontend["⚛️ Frontend (React + Tailwind CSS)"]
-    end
+## Desarrollo local
 
-    subgraph "Infraestructura Backend"
-        Backend["🐍 Backend (FastAPI)"] --> Database[("🍃 Base de Datos MongoDB")]
-    end
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn server:app --reload
+```
 
-    subgraph "Servicios Externos"
-        Auth["🔐 Google Auth (OAuth)"]
-        Drive["📄 Google Drive (Archivos)"]
-    end
+Prepara la primera cuenta de administración:
 
-    User -- HTTPS --> Frontend
-    Frontend -- API REST --> Backend
-    Frontend -- Redirección OAuth --> Auth
-    Auth -- Token de Sesión --> Frontend
-    Frontend -- Incrusta Contenido de --> Drive
+```bash
+cd backend
+python scripts/create_admin.py admin@ejemplo.org "Nombre" "contraseña-segura"
+```
+
+```bash
+cd frontend
+npm ci
+npm start
+```
+
+## Pruebas
+
+```bash
+pytest
+cd frontend && npm run build
 ```

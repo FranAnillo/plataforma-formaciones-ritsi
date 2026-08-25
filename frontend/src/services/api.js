@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 const API = axios.create({
   baseURL: `${BACKEND_URL}/api`,
   withCredentials: true, // Importante para que las cookies de sesión se envíen

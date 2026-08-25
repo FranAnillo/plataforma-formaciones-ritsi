@@ -1,88 +1,53 @@
 #!/usr/bin/env python3
-"""
-Script para crear un usuario con un rol específico en la base de datos.
-Uso: python3 create_user.py <email> <nombre_completo> <rol> [university_id]
-"""
-import sys
+"""Crea una cuenta local. La Junta Directiva se configura desde la aplicación."""
+import asyncio
 import os
-from pathlib import Path
+import sys
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
-# Añadir el directorio del backend al path para poder importar sus módulos
-backend_path = Path(__file__).parent.parent / 'backend'
-sys.path.insert(0, str(backend_path))
-
-# Cargar variables de entorno desde el .env del backend
 from dotenv import load_dotenv
-load_dotenv(backend_path / '.env')
-
 from motor.motor_asyncio import AsyncIOMotorClient
-import asyncio
 
-# Importar el enum UserType desde server.py para asegurar consistencia
-from server import UserType
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BACKEND_DIR))
+load_dotenv(BACKEND_DIR / ".env")
+load_dotenv(BACKEND_DIR.parent / ".env")
+from server import UserType, password_hash  # noqa: E402
+
 
 async def main():
-    if len(sys.argv) < 4 or len(sys.argv) > 5:
-        print("Error: Número de argumentos incorrecto.")
-        print("Uso: python3 create_user.py <email> \"<nombre_completo>\" <rol> [id_universidad]")
-        print(f"Roles disponibles: {', '.join([member.value for member in UserType])}")
-        sys.exit(1)
-
-    user_email = sys.argv[1]
-    user_name = sys.argv[2]
-    user_type_str = sys.argv[3]
-    university_id = sys.argv[4] if len(sys.argv) == 5 else None
-
-    # Validar el rol
+    if len(sys.argv) not in {5, 6}:
+        print('Uso: python scripts/create_user.py correo "Nombre" rol "contraseña" [id_universidad]')
+        raise SystemExit(1)
+    email, name, raw_role, password = sys.argv[1].lower(), sys.argv[2], sys.argv[3], sys.argv[4]
+    university_id = sys.argv[5] if len(sys.argv) == 6 else None
     try:
-        user_type = UserType(user_type_str)
+        role = UserType(raw_role)
     except ValueError:
-        print(f"Error: Rol '{user_type_str}' no es válido.")
-        print(f"Roles disponibles: {', '.join([member.value for member in UserType])}")
-        sys.exit(1)
-
-    print(f"Intentando crear usuario con email: {user_email}, nombre: {user_name} y rol: {user_type.value}")
-
-    # Conexión a la base de datos
-    mongo_url = os.environ['MONGO_URL']
-    db_name = os.environ['DB_NAME']
-    client = AsyncIOMotorClient(mongo_url)
-    db = client[db_name]
-
-    # Verificar si el usuario ya existe
-    existing_user = await db.users.find_one({"email": user_email})
-    if existing_user:
-        print(f"❌ Error: Ya existe un usuario con el email {user_email}.")
+        print("Perfil no válido. Opciones:", ", ".join(item.value for item in UserType if item != UserType.JUNTA_DIRECTIVA))
+        raise SystemExit(1)
+    if role == UserType.JUNTA_DIRECTIVA:
+        print("Crea la cuenta con otro perfil y asígnala después desde Junta Directiva.")
+        raise SystemExit(1)
+    if len(password) < 8:
+        print("La contraseña debe tener al menos 8 caracteres.")
+        raise SystemExit(1)
+    client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+    database = client[os.environ["DB_NAME"]]
+    if await database.users.find_one({"email": email}):
+        print("Ya existe una cuenta con ese correo.")
         client.close()
         return
-
-    # Si el rol es 'universidad' o 'representante', el ID de la universidad es obligatorio
-    if user_type in [UserType.UNIVERSIDAD, UserType.REPRESENTANTE]:
-        if not university_id:
-            print(f"Error: Para el rol '{user_type.value}', debes proporcionar un 'id_universidad'.")
-            sys.exit(1)
-        # Opcional: Verificar que la universidad existe
-        university = await db.universities.find_one({"id": university_id})
-        if not university:
-            print(f"❌ Error: No se encontró ninguna universidad con el ID '{university_id}'.")
-            client.close()
-            return
-
-    # Crear el nuevo usuario
-    new_user = {
-        "id": str(uuid.uuid4()),
-        "email": user_email,
-        "name": user_name,
-        "user_type": user_type.value,
-        "university_id": university_id,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
-
-    result = await db.users.insert_one(new_user)
-    print(f"✓ Usuario '{user_name}' creado exitosamente con el rol '{user_type.value}'.")
+    document = {"id": str(uuid.uuid4()), "email": email, "name": name,
+        "password_hash": password_hash(password), "user_type": role.value,
+        "board_position": None, "vocalia_ids": [], "university_id": university_id,
+        "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()}
+    await database.users.insert_one(document)
+    print(f"Cuenta creada para {name}.")
     client.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

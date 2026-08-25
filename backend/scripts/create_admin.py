@@ -1,65 +1,40 @@
 #!/usr/bin/env python3
-"""
-Script para crear un usuario administrador en la base de datos.
-Uso: python3 create_admin.py <email> <nombre_completo>
-"""
-import sys
+"""Crea o actualiza la cuenta de administración inicial."""
+import asyncio
 import os
-from pathlib import Path
+import sys
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
-# Añadir el directorio del backend al path para poder importar sus módulos
-backend_path = Path(__file__).parent.parent / 'backend'
-sys.path.insert(0, str(backend_path))
-
-# Cargar variables de entorno desde el .env del backend
 from dotenv import load_dotenv
-load_dotenv(backend_path / '.env')
-
 from motor.motor_asyncio import AsyncIOMotorClient
-import asyncio
 
-# Importar el enum UserType desde server.py para asegurar consistencia
-from server import UserType
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BACKEND_DIR))
+load_dotenv(BACKEND_DIR / ".env")
+load_dotenv(BACKEND_DIR.parent / ".env")
+from server import UserType, password_hash  # noqa: E402
+
 
 async def main():
-    if len(sys.argv) != 3:
-        print("Error: Debes proporcionar el email y el nombre del administrador.")
-        print("Uso: python3 create_admin.py <email> \"<nombre_completo>\"")
-        sys.exit(1)
-
-    admin_email = sys.argv[1]
-    admin_name = sys.argv[2]
-
-    print(f"Intentando crear administrador con email: {admin_email} y nombre: {admin_name}")
-
-    # Conexión a la base de datos
-    mongo_url = os.environ['MONGO_URL']
-    db_name = os.environ['DB_NAME']
-    client = AsyncIOMotorClient(mongo_url)
-    db = client[db_name]
-
-    # Verificar si el usuario ya existe
-    existing_user = await db.users.find_one({"email": admin_email})
-    if existing_user:
-        print(f"❌ Error: Ya existe un usuario con el email {admin_email}.")
-        client.close()
-        return
-
-    # Crear el nuevo usuario administrador
-    admin_user = {
-        "id": str(uuid.uuid4()),
-        "email": admin_email,
-        "name": admin_name,
-        "user_type": UserType.ADMIN.value, # Usamos el valor del enum
-        "university_id": None,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
-
-    result = await db.users.insert_one(admin_user)
-    print(f"✓ Administrador '{admin_name}' creado exitosamente con ID: {result.inserted_id}")
+    if len(sys.argv) != 4:
+        print('Uso: python scripts/create_admin.py correo@ejemplo.org "Nombre" "contraseña-segura"')
+        raise SystemExit(1)
+    email, name, password = sys.argv[1].lower(), sys.argv[2], sys.argv[3]
+    if len(password) < 8:
+        print("La contraseña debe tener al menos 8 caracteres.")
+        raise SystemExit(1)
+    client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+    database = client[os.environ["DB_NAME"]]
+    payload = {"email": email, "name": name, "password_hash": password_hash(password),
+        "user_type": UserType.ADMIN.value, "board_position": None, "vocalia_ids": [],
+        "university_id": None, "is_active": True}
+    result = await database.users.update_one({"email": email},
+        {"$set": payload, "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+    print("Cuenta de administración preparada." if result.acknowledged else "No se pudo preparar la cuenta.")
     client.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

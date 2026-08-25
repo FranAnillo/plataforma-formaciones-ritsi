@@ -1,44 +1,14 @@
-import { LogOut, User } from 'lucide-react';
-import { Button } from './ui/button';
+import { LogOut, Menu, UserRound, X } from 'lucide-react';
+import { useState } from 'react';
 import logo from '../static/1710_Isotipo_Degradado.png';
-import { ThemeToggleButton } from './ThemeToggleButton';
-import { roleNames } from '../utils/roles';
+import { boardPositionNames, roleNames } from '../utils/roles';
 
-export default function DashboardLayout({ user, onLogout, pageTitle, pageDescription, children }) {
-  return (
-    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 ease-in-out" style={{ fontFamily: 'Exo, sans-serif' }}>
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="Logo Plataforma Formativa" className="w-10 h-10 rounded-xl object-cover" />
-            <div>
-              <h1 className="text-xl font-bold">Plataforma Formativa RITSI</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{roleNames[user.user_type] || 'Usuario'}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <ThemeToggleButton />
-            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-full">
-              <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-              <span className="text-sm font-medium">{user.name}</span>
-            </div>
-            <Button onClick={onLogout} variant="ghost" size="sm" className="hover:bg-red-50 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400">
-              <LogOut className="w-4 h-4 mr-2" />
-              Cerrar Sesión
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-6 py-8">
-        {pageTitle && (
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{pageTitle}</h2>
-            {pageDescription && <p className="text-gray-600 dark:text-gray-400">{pageDescription}</p>}
-          </div>
-        )}
-        {children}
-      </main>
-    </div>
-  );
+export default function DashboardLayout({ user, onLogout, tabs = [], activeTab, onTabChange, children }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const profile = user.board_position ? boardPositionNames[user.board_position] : roleNames[user.user_type];
+  const selectTab = id => { onTabChange?.(id); setMenuOpen(false); };
+  return <div className="dashboard-shell">
+    <header className="app-header"><div className="header-inner"><a href="/dashboard" className="brand-lockup"><img src={logo} alt="RITSI" /><span>Formación RITSI</span></a><div className="desktop-profile"><div className="user-chip"><UserRound size={17} /><span><strong>{user.name}</strong><small>{profile}</small></span></div><button className="logout-button" onClick={onLogout}><LogOut size={17} /><span>Salir</span></button></div><button className="mobile-menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Abrir navegación">{menuOpen ? <X /> : <Menu />}</button></div></header>
+    <div className="dashboard-body"><aside className={`sidebar ${menuOpen ? 'open' : ''}`}><div className="mobile-profile"><strong>{user.name}</strong><small>{profile}</small></div><nav>{tabs.map(({ id, label, icon: Icon }) => <button key={id} className={activeTab === id ? 'active' : ''} onClick={() => selectTab(id)}><Icon size={19} />{label}</button>)}</nav><button className="mobile-logout" onClick={onLogout}><LogOut size={18} /> Cerrar sesión</button></aside><main className="dashboard-main">{children}</main></div>
+  </div>;
 }

@@ -7,21 +7,25 @@ services:
       - mongo_data:/data/db
 
   backend:
-    image: iireenees012/ritsi-backend:1.0
+    build: ./backend
     env_file:
       - .env
     environment:
       MONGO_URL: mongodb://mongo:27017
       DB_NAME: plataforma_formativa_ritsi
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      FORMATIONS_SHEET_ID: ${FORMATIONS_SHEET_ID:-1JSRrepNNdQDl6zeroZPDKUJztLhSC3j6r7y2h_ND09c}
+      AUTO_IMPORT_FORMATIONS: ${AUTO_IMPORT_FORMATIONS:-true}
+      AUTO_IMPORT_UNIVERSITIES: ${AUTO_IMPORT_UNIVERSITIES:-true}
     ports:
       - "8000:8000"
     depends_on:
       - mongo
 
   frontend:
-    image: iireenees012/ritsi-frontend:1.0
+    build: ./frontend
     environment:
-      REACT_APP_BACKEND_URL: http://localhost:8000
+      VITE_BACKEND_URL: http://localhost:8000
     ports:
       - "3000:3000"
     depends_on:
@@ -29,7 +33,8 @@ services:
 
   # 🔴 SERVICIO DE SCRIPTS
   scripts:
-    image: iireenees012/ritsi-backend:1.0
+    build: ./backend
+    profiles: ["tools"]
     env_file:
       - .env
     environment:

@@ -1,97 +1,73 @@
-import { BookOpen, GraduationCap, Users, Award } from 'lucide-react';
-import { Button } from '../components/ui/button';
+import { useEffect, useState } from 'react';
+import { BookOpen, ExternalLink, Layers3, ShieldCheck, Users } from 'lucide-react';
+import { toast } from 'sonner';
+import api from '../services/api';
 import logo from '../static/1710_Isotipo_Degradado.png';
-import { ThemeToggleButton } from '../components/ThemeToggleButton';
 
-const REDIRECT_URL = window.location.origin + '/dashboard';
-const AUTH_URL = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(REDIRECT_URL)}`;
+const emptyLogin = { email: '', password: '' };
+const emptyRegister = { name: '', email: '', password: '', university_id: '' };
 
-export default function Landing() {
+export default function Landing({ onAuthenticated }) {
+  const [mode, setMode] = useState('login');
+  const [login, setLogin] = useState(emptyLogin);
+  const [register, setRegister] = useState(emptyRegister);
+  const [universities, setUniversities] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    api.get('/universities').then(({ data }) => setUniversities(data.filter(item => item.is_active))).catch(() => null);
+  }, []);
+
+  const submit = async event => {
+    event.preventDefault();
+    setSubmitting(true);
+    try {
+      const { data } = await api.post(`/auth/${mode}`, mode === 'login' ? login : register);
+      onAuthenticated(data);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'No se pudo completar el acceso');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-red-50 to-red-100 dark:from-gray-900 dark:via-black dark:to-black text-gray-800 dark:text-gray-200" style={{ fontFamily: 'Exo, sans-serif' }}>
-      {/* Header */}
-      <header className="container mx-auto px-6 py-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="Logo de Gestión de Formaciones RITSI" className="w-10 h-10" />
-            <h1 className="text-2xl font-bold">Gestión de Formaciones RITSI</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggleButton />
-            <Button 
-              data-testid="login-button"
-              onClick={() => window.location.href = AUTH_URL}
-              className="bg-[#da2724] hover:bg-[#b8211e] text-white px-6 py-2 rounded-full font-medium shadow-lg hover:shadow-xl transition-all"
-            >
-              Iniciar Sesión
-            </Button>
+    <main className="landing-shell">
+      <nav className="landing-nav">
+        <a href="/" className="brand-lockup"><img src={logo} alt="RITSI" /><span>Formación RITSI</span></a>
+        <a href="https://ritsi.org" target="_blank" rel="noreferrer" className="quiet-link">ritsi.org <ExternalLink size={14} /></a>
+      </nav>
+      <section className="hero-grid">
+        <div className="hero-copy">
+          <span className="eyebrow">Conocimiento compartido</span>
+          <h1>La formación de RITSI, accesible y bien organizada.</h1>
+          <p>Consulta el histórico, descubre recursos y acompaña el aprendizaje de representantes, Vocalías y Junta Directiva desde un único espacio.</p>
+          <div className="hero-points">
+            <span><BookOpen size={18} /> Catálogo histórico</span>
+            <span><Layers3 size={18} /> Recursos enlazados</span>
+            <span><ShieldCheck size={18} /> Acceso por perfiles</span>
           </div>
         </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="container mx-auto px-6 py-16 md:py-24">
-        <div className="text-center max-w-4xl mx-auto">
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-white mb-6">
-            Formación de RITSI para RITSI<br />
-            <span className="text-[#da2724]">Organizada y Efectiva</span>
-          </h2>
-          <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-400 mb-10 leading-relaxed">
-            Una plataforma completa para gestionar contenidos formativos, cuestionarios y seguimiento del progreso de los representantes universitarios.
-          </p>
-          <Button 
-            data-testid="hero-cta-button"
-            onClick={() => window.location.href = AUTH_URL}
-            size="lg"
-            className="bg-[#da2724] hover:bg-[#b8211e] text-white px-8 py-6 rounded-full text-lg font-semibold shadow-2xl hover:shadow-3xl transition-all hover:scale-105"
-          >
-            Comenzar Ahora
-          </Button>
+        <div className="auth-card">
+          <div className="auth-tabs">
+            <button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Acceder</button>
+            <button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Crear cuenta</button>
+          </div>
+          <form onSubmit={submit}>
+            <div><span className="eyebrow">Área privada</span><h2>{mode === 'login' ? 'Te damos la bienvenida' : 'Únete a la plataforma'}</h2></div>
+            {mode === 'register' && <label>Nombre completo<input required value={register.name} onChange={e => setRegister({ ...register, name: e.target.value })} autoComplete="name" /></label>}
+            <label>Correo electrónico<input type="email" required value={mode === 'login' ? login.email : register.email} onChange={e => mode === 'login' ? setLogin({ ...login, email: e.target.value }) : setRegister({ ...register, email: e.target.value })} autoComplete="email" /></label>
+            <label>Contraseña<input type="password" minLength="8" required value={mode === 'login' ? login.password : register.password} onChange={e => mode === 'login' ? setLogin({ ...login, password: e.target.value }) : setRegister({ ...register, password: e.target.value })} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></label>
+            {mode === 'register' && <label>Universidad<select required value={register.university_id} onChange={e => setRegister({ ...register, university_id: e.target.value })}><option value="">Selecciona una universidad</option>{universities.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
+            <button className="primary-button" disabled={submitting}>{submitting ? 'Procesando…' : mode === 'login' ? 'Iniciar sesión' : 'Crear mi cuenta'}</button>
+          </form>
         </div>
       </section>
-
-      {/* Features Section */}
-      <section className="container mx-auto px-6 py-16">
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-          <FeatureCard
-            icon={<BookOpen className="w-10 h-10 text-[#da2724]" />}
-            title="Contenido Multimedia"
-            description="Vídeos y PDFs alojados en Google Drive con acceso controlado."
-          />
-          <FeatureCard
-            icon={<Users className="w-10 h-10 text-[#da2724]" />}
-            title="Múltiples Roles"
-            description="Sistema de permisos para representantes, universidades, junta directiva y escuela de formación."
-          />
-          <FeatureCard
-            icon={<Award className="w-10 h-10 text-[#da2724]" />}
-            title="Cuestionarios"
-            description="Evaluaciones con mínimo 70% para aprobar. V/F y opción múltiple."
-          />
-          <FeatureCard
-            icon={<GraduationCap className="w-10 h-10 text-[#da2724]" />}
-            title="Seguimiento"
-            description="Control del progreso y completitud de cada unidad formativa."
-          />
-        </div>
+      <section className="feature-strip">
+        <article><Users /><strong>Vocalías conectadas</strong><span>Responsables y miembros en una estructura clara.</span></article>
+        <article><BookOpen /><strong>Recursos reales</strong><span>Presentaciones, documentos y grabaciones desde su fuente.</span></article>
+        <article><ShieldCheck /><strong>Gobernanza fiable</strong><span>Los cinco cargos esenciales de Junta siempre protegidos.</span></article>
       </section>
-
-      {/* Footer */}
-      <footer className="container mx-auto px-6 py-8 mt-20 border-t border-gray-200 dark:border-gray-800">
-        <p className="text-center text-gray-600 dark:text-gray-400">
-          © 2025 Gestión de Formaciones <a href="https://ritsi.org" target="_blank" rel="noopener noreferrer" className="text-[#da2724] hover:underline">RITSI</a>.
-        </p>
-      </footer>
-    </div>
-  );
-}
-
-function FeatureCard({ icon, title, description }) {
-  return (
-    <div className="bg-white/60 dark:bg-gray-800/40 p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all border border-gray-100 dark:border-gray-800 hover:border-red-200 dark:hover:border-red-500/30">
-      <div className="mb-4">{icon}</div>
-      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">{title}</h3>
-      <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{description}</p>
-    </div>
+    </main>
   );
 }

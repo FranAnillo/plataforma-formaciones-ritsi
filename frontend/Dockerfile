@@ -1,5 +1,5 @@
 # frontend/Dockerfile
-FROM node:18-alpine
+FROM node:22-alpine
 
 # Directorio de trabajo
 WORKDIR /app
@@ -8,13 +8,13 @@ WORKDIR /app
 COPY package*.json /app/
 
 # Instalar dependencias
-RUN npm install
+RUN npm ci
 
 # Copiar el resto del código del frontend
 COPY . /app
 
 # Variable para apuntar al backend (se sobreescribe en docker-compose)
-ENV REACT_APP_BACKEND_URL=http://localhost:8000
+ENV VITE_BACKEND_URL=http://localhost:8000
 
 # Exponer el puerto de desarrollo de React
 EXPOSE 3000
