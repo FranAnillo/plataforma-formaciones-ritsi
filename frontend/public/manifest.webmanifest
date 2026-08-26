@@ -1,0 +1,14 @@
+{
+  "name": "Plataforma Formativa RITSI",
+  "short_name": "Formación RITSI",
+  "description": "Formación, sesiones y seguimiento para la comunidad RITSI",
+  "lang": "es",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f7f9",
+  "theme_color": "#d82926",
+  "icons": [
+    { "src": "/1710_Isotipo_Degradado.png", "sizes": "any", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

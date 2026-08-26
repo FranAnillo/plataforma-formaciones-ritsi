@@ -31,7 +31,7 @@ async def main():
         "user_type": UserType.ADMIN.value, "board_position": None, "vocalia_ids": [],
         "university_id": None, "is_active": True}
     result = await database.users.update_one({"email": email},
-        {"$set": payload, "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+        {"$set": payload, "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": datetime.now(timezone.utc)}}, upsert=True)
     print("Cuenta de administración preparada." if result.acknowledged else "No se pudo preparar la cuenta.")
     client.close()
 

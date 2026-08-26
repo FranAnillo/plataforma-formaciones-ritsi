@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { BookOpen, ExternalLink, Layers3, ShieldCheck, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
-import logo from '../static/1710_Isotipo_Degradado.png';
+
+const logo = '/1710_Isotipo_Degradado.png';
 
 const emptyLogin = { email: '', password: '' };
 const emptyRegister = { name: '', email: '', password: '', university_id: '' };
@@ -12,10 +13,18 @@ export default function Landing({ onAuthenticated }) {
   const [login, setLogin] = useState(emptyLogin);
   const [register, setRegister] = useState(emptyRegister);
   const [universities, setUniversities] = useState([]);
+  const [universitiesError, setUniversitiesError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const loadUniversities = () => {
+    setUniversitiesError('');
+    api.get('/universities')
+      .then(({ data }) => setUniversities(data.filter(item => item.is_active)))
+      .catch(() => setUniversitiesError('No se pudo cargar el listado de universidades.'));
+  };
+
   useEffect(() => {
-    api.get('/universities').then(({ data }) => setUniversities(data.filter(item => item.is_active))).catch(() => null);
+    loadUniversities();
   }, []);
 
   const submit = async event => {
@@ -58,7 +67,7 @@ export default function Landing({ onAuthenticated }) {
             {mode === 'register' && <label>Nombre completo<input required value={register.name} onChange={e => setRegister({ ...register, name: e.target.value })} autoComplete="name" /></label>}
             <label>Correo electrónico<input type="email" required value={mode === 'login' ? login.email : register.email} onChange={e => mode === 'login' ? setLogin({ ...login, email: e.target.value }) : setRegister({ ...register, email: e.target.value })} autoComplete="email" /></label>
             <label>Contraseña<input type="password" minLength="8" required value={mode === 'login' ? login.password : register.password} onChange={e => mode === 'login' ? setLogin({ ...login, password: e.target.value }) : setRegister({ ...register, password: e.target.value })} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></label>
-            {mode === 'register' && <label>Universidad<select required value={register.university_id} onChange={e => setRegister({ ...register, university_id: e.target.value })}><option value="">Selecciona una universidad</option>{universities.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
+            {mode === 'register' && <><label>Universidad<select required value={register.university_id} onChange={e => setRegister({ ...register, university_id: e.target.value })}><option value="">Selecciona una universidad</option>{universities.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>{universitiesError && <div className="form-load-error" role="alert"><span>{universitiesError}</span><button type="button" className="text-button" onClick={loadUniversities}>Reintentar</button></div>}</>}
             <button className="primary-button" disabled={submitting}>{submitting ? 'Procesando…' : mode === 'login' ? 'Iniciar sesión' : 'Crear mi cuenta'}</button>
           </form>
         </div>

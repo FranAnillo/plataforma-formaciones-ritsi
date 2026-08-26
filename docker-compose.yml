@@ -2,9 +2,16 @@ services:
   mongo:
     image: mongo:6
     ports:
-      - "27017:27017"
+      - "127.0.0.1:${MONGO_BIND_PORT:-27017}:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand('ping').ok ? 0 : 2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
 
   backend:
     build: ./backend
@@ -14,22 +21,76 @@ services:
       MONGO_URL: mongodb://mongo:27017
       DB_NAME: plataforma_formativa_ritsi
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-Europe/Madrid}
+      DEFAULT_JOIN_WINDOW_MINUTES: ${DEFAULT_JOIN_WINDOW_MINUTES:-15}
+      MEETING_URL_ENCRYPTION_KEY: ${MEETING_URL_ENCRYPTION_KEY:-}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:3000}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      GOOGLE_CALENDAR_ID: ${GOOGLE_CALENDAR_ID:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN:-}
       FORMATIONS_SHEET_ID: ${FORMATIONS_SHEET_ID:-1JSRrepNNdQDl6zeroZPDKUJztLhSC3j6r7y2h_ND09c}
-      AUTO_IMPORT_FORMATIONS: ${AUTO_IMPORT_FORMATIONS:-true}
-      AUTO_IMPORT_UNIVERSITIES: ${AUTO_IMPORT_UNIVERSITIES:-true}
+      AUTO_IMPORT_FORMATIONS: ${AUTO_IMPORT_FORMATIONS:-false}
+      AUTO_IMPORT_UNIVERSITIES: ${AUTO_IMPORT_UNIVERSITIES:-false}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${BACKEND_BIND_PORT:-8000}:8000"
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    init: true
+    restart: unless-stopped
+
+  worker:
+    build: ./backend
+    command: python worker.py
+    env_file:
+      - .env
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: plataforma_formativa_ritsi
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:3000}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      GOOGLE_CALENDAR_ID: ${GOOGLE_CALENDAR_ID:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN:-}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    init: true
+    restart: unless-stopped
 
   frontend:
-    build: ./frontend
-    environment:
-      VITE_BACKEND_URL: http://localhost:8000
+    build:
+      context: ./frontend
+      args:
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:8000}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${FRONTEND_BIND_PORT:-3000}:8080"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    init: true
+    restart: unless-stopped
 
   # 🔴 SERVICIO DE SCRIPTS
   scripts:
@@ -42,7 +103,8 @@ services:
       DB_NAME: plataforma_formativa_ritsi
       PYTHONPATH: /app
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
     working_dir: /app
     restart: "no"
 

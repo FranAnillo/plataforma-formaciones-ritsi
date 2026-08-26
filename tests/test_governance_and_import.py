@@ -9,6 +9,7 @@ from backend.server import (
     parse_sheet_workbook,
     parse_ritsi_universities,
     modernize_text,
+    imported_source_update,
     validate_board_members,
 )
 
@@ -52,7 +53,7 @@ def test_current_vocalia_naming_is_applied_to_historical_labels():
     assert modernize_text("Coordinador de la Escuela " + "de Formación") == "Vocalía de Formación"
 
 
-def test_sheet_parser_keeps_metadata_and_resource_urls():
+def _workbook_with_single_resource():
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "2026 - 27"
@@ -62,8 +63,13 @@ def test_sheet_parser_keeps_metadata_and_resource_urls():
     sheet["L3"].hyperlink = "https://docs.google.com/presentation/d/example/edit"
     binary = io.BytesIO()
     workbook.save(binary)
+    return binary.getvalue()
 
-    items = parse_sheet_workbook(binary.getvalue(), "test", True)
+
+def test_sheet_parser_keeps_metadata_and_resource_urls():
+    binary = _workbook_with_single_resource()
+
+    items = parse_sheet_workbook(binary, "test", True)
 
     assert len(items) == 1
     item = items[0]
@@ -74,6 +80,25 @@ def test_sheet_parser_keeps_metadata_and_resource_urls():
     assert item.tags == ["gobernanza", "RITSI"]
     assert item.files[0].url == "https://docs.google.com/presentation/d/example/edit"
     assert item.files[0].file_type.value == "presentation"
+
+    repeated = parse_sheet_workbook(binary, "another-actor", False)[0]
+    assert repeated.files[0].id == item.files[0].id
+
+
+def test_import_update_preserves_locally_authored_and_publication_fields():
+    item = parse_sheet_workbook(_workbook_with_single_resource(), "importer", True)[0]
+    item.source_document_id = "sheet-1"
+
+    update = imported_source_update(item)
+
+    assert update["source_document_id"] == "sheet-1"
+    assert "files" in update
+    assert "status" not in update
+    assert "is_public" not in update
+    assert "created_by" not in update
+    assert "created_at" not in update
+    assert "category_ids" not in update
+    assert "quizzes" not in update
 
 
 def test_ritsi_university_parser_keeps_membership_and_contact_data():

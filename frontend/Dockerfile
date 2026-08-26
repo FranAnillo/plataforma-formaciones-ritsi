@@ -1,23 +1,23 @@
-# frontend/Dockerfile
-FROM node:22-alpine
+FROM node:22-alpine AS builder
 
-# Directorio de trabajo
 WORKDIR /app
 
-# Copiar package.json y package-lock.json (si existe)
-COPY package*.json /app/
-
-# Instalar dependencias
+COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copiar el resto del código del frontend
-COPY . /app
+COPY . .
 
-# Variable para apuntar al backend (se sobreescribe en docker-compose)
-ENV VITE_BACKEND_URL=http://localhost:8000
+ARG VITE_BACKEND_URL=http://localhost:8000
+ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
 
-# Exponer el puerto de desarrollo de React
-EXPOSE 3000
+RUN npm run build
 
-# Ejecutar la app en modo desarrollo
-CMD ["npm", "start"]
+
+FROM nginxinc/nginx-unprivileged:1.30-alpine AS runtime
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+EXPOSE 8080
+
+CMD ["nginx", "-g", "daemon off;"]
