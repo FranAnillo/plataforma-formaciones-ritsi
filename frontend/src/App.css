@@ -24,6 +24,9 @@ button { cursor:pointer; }
 .auth-tabs button { border:0; background:transparent; padding:11px; border-radius:12px; color:var(--muted); font-weight:700; }
 .auth-tabs button.active { background:#fff; color:var(--ink); box-shadow:0 3px 10px rgba(20,30,48,.08); }
 .auth-card form { padding:25px 34px 34px; display:grid; gap:18px; }
+.google-login { display:grid; gap:14px; text-align:center; }
+.google-login .secondary-button { justify-content:center; text-decoration:none; }
+.google-login > span { color:var(--muted); font-size:.85rem; }
 .auth-card h2 { font-size:1.65rem; margin:7px 0 4px; letter-spacing:-.03em; }
 label { display:grid; gap:7px; color:#435069; font-size:.84rem; font-weight:700; }
 input, select, textarea { width:100%; border:1px solid #dce1e8; color:var(--ink); background:#fff; border-radius:11px; padding:12px 13px; outline:none; transition:.18s; }

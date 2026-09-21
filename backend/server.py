@@ -17,6 +17,7 @@ from datetime import date, datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import bcrypt
@@ -28,12 +29,15 @@ from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from openpyxl import load_workbook
 from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 from starlette.middleware.cors import CORSMiddleware
 
 try:
+    from . import google_sso
     from .integrations import render_ics, telegram_link
 except ImportError:
+    import google_sso
     from integrations import render_ics, telegram_link
 
 ROOT_DIR = Path(__file__).parent
@@ -1062,7 +1066,111 @@ async def create_session(user: User) -> str:
 
 def session_response(user: User, token: str, code: int = 200) -> JSONResponse:
     response = JSONResponse(serialize(user), status_code=code)
+    set_session_cookie(response, token)
+    return response
+
+
+def set_session_cookie(response, token: str):
     response.set_cookie("session_token", token, httponly=True, secure=COOKIE_SECURE, samesite="lax", max_age=SESSION_DAYS * 86400, path="/")
+
+
+GOOGLE_STATE_COOKIE = "google_sso_browser"
+GOOGLE_COOKIE_PATH = "/api/auth/google"
+
+
+def google_login_redirect(error: str | None = None):
+    destination = f"{PUBLIC_APP_URL.rstrip('/')}/"
+    if error:
+        destination += "?" + urlencode({"google_error": error})
+    else:
+        destination += "dashboard"
+    response = RedirectResponse(destination, status_code=303, headers={
+        "Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+    })
+    response.delete_cookie(GOOGLE_STATE_COOKIE, path=GOOGLE_COOKIE_PATH, secure=COOKIE_SECURE, httponly=True, samesite="lax")
+    return response
+
+
+@api_router.get("/auth/providers")
+async def auth_providers():
+    config = google_sso.configuration(PUBLIC_API_URL)
+    return {"google": bool(config["client_id"] and config["client_secret"])}
+
+
+@api_router.get("/auth/google/login")
+async def google_login(request: Request):
+    config = google_sso.configuration(PUBLIC_API_URL)
+    if not config["client_id"] or not config["client_secret"]:
+        return google_login_redirect("not_configured")
+    await enforce_login_rate_limit("google-sso", request.client.host if request.client else "unknown")
+    state, browser, nonce, verifier = [secrets.token_urlsafe(32) for _ in range(4)]
+    await db.google_oauth_states.insert_one({
+        "state_hash": token_digest(state), "browser_hash": token_digest(browser),
+        "nonce": nonce, "verifier": verifier,
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
+    })
+    params = {
+        "client_id": config["client_id"], "redirect_uri": config["redirect_uri"],
+        "response_type": "code", "scope": "openid email", "state": state,
+        "nonce": nonce, "prompt": "select_account",
+        "code_challenge": base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode(),
+        "code_challenge_method": "S256",
+    }
+    if config["allowed_domain"]:
+        params["hd"] = config["allowed_domain"]
+    response = RedirectResponse(google_sso.GOOGLE_AUTHORIZATION_URL + "?" + urlencode(params), status_code=302,
+                                headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+    response.set_cookie(GOOGLE_STATE_COOKIE, browser, max_age=600, httponly=True,
+                        secure=COOKIE_SECURE, samesite="lax", path=GOOGLE_COOKIE_PATH)
+    return response
+
+
+@api_router.get("/auth/google/callback")
+async def google_callback(request: Request, state: str = "", code: str = "", error: str = ""):
+    config = google_sso.configuration(PUBLIC_API_URL)
+    if not config["client_id"] or not config["client_secret"]:
+        return google_login_redirect("not_configured")
+    browser = request.cookies.get(GOOGLE_STATE_COOKIE, "")
+    if not state or not browser or len(state) > 128 or len(browser) > 128:
+        return google_login_redirect("invalid_state")
+    transaction = await db.google_oauth_states.find_one_and_delete({
+        "state_hash": token_digest(state), "browser_hash": token_digest(browser),
+        "expires_at": {"$gt": datetime.now(timezone.utc)},
+    })
+    if not transaction:
+        return google_login_redirect("invalid_state")
+    if error or not code:
+        return google_login_redirect("cancelled" if error == "access_denied" else "failed")
+    try:
+        claims = await asyncio.to_thread(google_sso.exchange_code, code, config, transaction["verifier"], transaction["nonce"])
+    except google_sso.GoogleSSOError:
+        return google_login_redirect("failed")
+    if config["allowed_domain"] and claims.get("hd", "").lower() != config["allowed_domain"]:
+        return google_login_redirect("domain_not_allowed")
+
+    # The provider's stable subject is the identity; email is only used for the
+    # first binding, and only if Google is authoritative for that address.
+    stored = await db.users.find_one({"google_sub": claims["sub"]})
+    if not stored:
+        if not google_sso.google_controls_email(claims):
+            return google_login_redirect("email_not_authoritative")
+        stored = await db.users.find_one({"email": claims["email"].lower()})
+    if not stored:
+        return google_login_redirect("account_required")
+    if not stored.get("is_active", True):
+        return google_login_redirect("account_disabled")
+    try:
+        stored = await db.users.find_one_and_update({
+            "id": stored["id"], "is_active": {"$ne": False},
+            "$or": [{"google_sub": {"$exists": False}}, {"google_sub": claims["sub"]}],
+        }, {"$set": {"google_sub": claims["sub"]}}, return_document=ReturnDocument.AFTER)
+    except DuplicateKeyError:
+        return google_login_redirect("account_conflict")
+    if not stored:
+        return google_login_redirect("account_conflict")
+    user = User(**stored)
+    response = google_login_redirect()
+    set_session_cookie(response, await create_session(user))
     return response
 
 
@@ -2820,6 +2928,9 @@ async def initialize_database():
     await encrypt_pending_legacy_meeting_urls()
     await db.schema_migrations.create_index("id", unique=True)
     await db.users.create_index("email", unique=True)
+    await db.users.create_index("google_sub", unique=True, sparse=True)
+    await db.google_oauth_states.create_index("state_hash", unique=True)
+    await db.google_oauth_states.create_index("expires_at", expireAfterSeconds=0)
     await db.user_sessions.create_index("session_token_hash", unique=True, sparse=True)
     await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
     await db.training_contents.create_index("id", unique=True)

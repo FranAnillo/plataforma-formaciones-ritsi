@@ -1,12 +1,23 @@
 import { useEffect, useState } from 'react';
 import { BookOpen, ExternalLink, Layers3, ShieldCheck, Users } from 'lucide-react';
 import { toast } from 'sonner';
-import api from '../services/api';
+import api, { GOOGLE_LOGIN_URL } from '../services/api';
 
 const logo = '/1710_Isotipo_Degradado.png';
 
 const emptyLogin = { email: '', password: '' };
 const emptyRegister = { name: '', email: '', password: '', university_id: '' };
+const googleErrors = {
+  not_configured: 'El acceso con Google todavía no está configurado.',
+  invalid_state: 'El intento de acceso ha caducado o no corresponde a este navegador. Vuelve a intentarlo.',
+  cancelled: 'Has cancelado el acceso con Google.',
+  failed: 'No se pudo verificar el acceso con Google. Vuelve a intentarlo.',
+  domain_not_allowed: 'Utiliza una cuenta de Google del dominio autorizado por la plataforma.',
+  account_required: 'Primero crea tu cuenta con este mismo correo y selecciona tu universidad. Después podrás acceder con Google.',
+  account_disabled: 'Tu cuenta está desactivada. Contacta con la administración.',
+  account_conflict: 'Esta cuenta ya está vinculada a otra identidad de Google. Accede con tu contraseña y contacta con la administración.',
+  email_not_authoritative: 'Para este correo, utiliza tu contraseña. El acceso con Google admite cuentas de Gmail o Google Workspace.',
+};
 
 export default function Landing({ onAuthenticated }) {
   const [mode, setMode] = useState('login');
@@ -15,6 +26,11 @@ export default function Landing({ onAuthenticated }) {
   const [universities, setUniversities] = useState([]);
   const [universitiesError, setUniversitiesError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [googleError] = useState(() => {
+    const code = new URLSearchParams(window.location.search).get('google_error');
+    return code ? googleErrors[code] || googleErrors.failed : '';
+  });
 
   const loadUniversities = () => {
     setUniversitiesError('');
@@ -25,6 +41,12 @@ export default function Landing({ onAuthenticated }) {
 
   useEffect(() => {
     loadUniversities();
+    api.get('/auth/providers').then(({ data }) => setGoogleEnabled(data.google === true)).catch(() => setGoogleEnabled(false));
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('google_error')) {
+      url.searchParams.delete('google_error');
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    }
   }, []);
 
   const submit = async event => {
@@ -64,6 +86,8 @@ export default function Landing({ onAuthenticated }) {
           </div>
           <form onSubmit={submit}>
             <div><span className="eyebrow">Área privada</span><h2>{mode === 'login' ? 'Te damos la bienvenida' : 'Únete a la plataforma'}</h2></div>
+            {googleError && <div className="inline-alert warning" role="alert">{googleError}</div>}
+            {mode === 'login' && googleEnabled && <div className="google-login"><a className="secondary-button" href={GOOGLE_LOGIN_URL}>Continuar con Google</a><span>O accede con tu correo y contraseña</span></div>}
             {mode === 'register' && <label>Nombre completo<input required value={register.name} onChange={e => setRegister({ ...register, name: e.target.value })} autoComplete="name" /></label>}
             <label>Correo electrónico<input type="email" required value={mode === 'login' ? login.email : register.email} onChange={e => mode === 'login' ? setLogin({ ...login, email: e.target.value }) : setRegister({ ...register, email: e.target.value })} autoComplete="email" /></label>
             <label>Contraseña<input type="password" minLength="8" required value={mode === 'login' ? login.password : register.password} onChange={e => mode === 'login' ? setLogin({ ...login, password: e.target.value }) : setRegister({ ...register, password: e.target.value })} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></label>

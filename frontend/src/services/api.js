@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000').replace(/\/+$/, '');
+export const GOOGLE_LOGIN_URL = `${BACKEND_URL}/api/auth/google/login`;
 const API = axios.create({
   baseURL: `${BACKEND_URL}/api`,
   withCredentials: true, // Importante para que las cookies de sesión se envíen

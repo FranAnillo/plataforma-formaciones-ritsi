@@ -76,6 +76,44 @@ MongoDB queda publicado únicamente en `127.0.0.1`. El frontend se compila como 
 
 ## Desarrollo local
 
+### Inicio de sesión con Google
+
+El botón **Continuar con Google** se activa al rellenar `GOOGLE_SSO_CLIENT_ID`
+y `GOOGLE_SSO_CLIENT_SECRET` en `.env`. Son credenciales de un cliente OAuth de
+tipo **Aplicación web**, independientes de las variables de Google Calendar.
+
+1. Copia `.env.example` a `.env` si aún no tienes configuración. Si ya tienes
+   `.env`, añade el bloque `GOOGLE_SSO_*` conservando tus secretos y ajustes.
+2. En [Google Auth Platform](https://console.cloud.google.com/auth/clients),
+   configura la marca y la audiencia, crea el cliente de aplicación web y añade
+   `http://localhost:8000/api/auth/google/callback` como URI de redirección
+   autorizada. Debe coincidir exactamente con `GOOGLE_SSO_REDIRECT_URI`.
+   Si la aplicación es externa y está en pruebas, añade las cuentas en **Test users**.
+3. Pega el ID y el secreto en `.env`. Opcionalmente configura
+   `GOOGLE_SSO_ALLOWED_DOMAIN=ritsi.org` para admitir solo ese dominio de Workspace.
+4. Ejecuta `docker compose up --build -d` y abre `http://localhost:3000`.
+
+Primero hay que tener una cuenta activa registrada con el mismo correo. El SSO
+conserva los permisos y la universidad; el registro con contraseña sigue
+disponible. La primera vinculación admite Gmail o direcciones de Google
+Workspace verificadas por Google. Para cuentas de Google creadas con correos
+de terceros ajenos a Workspace, se mantiene el acceso con contraseña. Después
+de vincular, se usa el identificador estable de Google y no el correo como identidad.
+Las cuentas desactivadas tampoco pueden entrar por Google.
+
+El flujo usa código de autorización, PKCE, estado de un solo uso vinculado al
+navegador y validación de firma, emisor, audiencia, caducidad y nonce del ID token.
+El secreto queda en el backend y la sesión usa la cookie HttpOnly existente.
+No requiere acceso a Calendar, Drive ni refresh tokens. Referencia:
+[OpenID Connect de Google](https://developers.google.com/identity/openid-connect/openid-connect).
+
+En producción actualiza `PUBLIC_APP_URL`, `PUBLIC_API_URL`, `VITE_BACKEND_URL`,
+`CORS_ORIGINS` y la URI de redirección a tus URLs HTTPS, registra esa misma URI
+en Google y usa `COOKIE_SECURE=true`. Sirve web y API bajo el mismo sitio
+(por ejemplo `formacion.ritsi.org` y `api.ritsi.org`) para la cookie SameSite.
+
+### Arranque sin Docker
+
 ```bash
 cd backend
 pip install -r requirements.txt
